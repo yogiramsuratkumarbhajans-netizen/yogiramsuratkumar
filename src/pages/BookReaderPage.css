@@ -1,0 +1,658 @@
+.book-reader-page {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    z-index: 2000;
+    overflow: hidden;
+    color: #f1f5f9;
+    overscroll-behavior: none;
+    touch-action: none;
+}
+
+.reader-toolbar {
+    height: 64px;
+    background: #0f172a;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    z-index: 50;
+    border-bottom: 1px solid #1e293b;
+    position: relative;
+    /* Needed for absolute centering */
+}
+
+/* Ensure left and right sections stay on top and clickable */
+.toolbar-left,
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    z-index: 10;
+    background: #0f172a;
+    /* Mask line behind if needed */
+}
+
+.btn-icon {
+    background: transparent;
+    /* Cleaner look */
+    border: 1px solid transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-icon:hover {
+    background: rgba(255, 255, 255, 0.08);
+    /* More subtle hover */
+    color: #f8fafc;
+}
+
+.btn-icon.active {
+    background: rgba(255, 153, 51, 0.15);
+    color: #FF9933;
+}
+
+/* Go to Page Modal */
+.goto-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    backdrop-filter: blur(2px);
+}
+
+.goto-modal {
+    background: #1e293b;
+    padding: 1.5rem;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 280px;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    border: 1px solid #334155;
+}
+
+.goto-modal h4 {
+    margin: 0 0 1rem;
+    color: #f8fafc;
+    text-align: center;
+}
+
+.goto-modal input {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    background: #0f172a;
+    color: white;
+    font-size: 1.1rem;
+    text-align: center;
+    margin-bottom: 1rem;
+}
+
+.goto-modal input:focus {
+    outline: none;
+    border-color: #FF9933;
+}
+
+.goto-modal .modal-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.goto-modal .modal-actions button {
+    flex: 1;
+    padding: 0.65rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.goto-modal .modal-actions button[type="button"] {
+    background: transparent;
+    border: 1px solid #334155;
+    color: #94a3b8;
+}
+
+.goto-modal .modal-actions button[type="submit"] {
+    background: linear-gradient(135deg, #FF9933, #FF6600);
+    border: none;
+    color: white;
+}
+
+.book-title-mini {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    z-index: 5;
+    /* Ensure it doesn't overlap excessively on small screens */
+    width: 100%;
+    max-width: 400px;
+    pointer-events: none;
+    /* Let clicks pass through if overlapping empty space */
+}
+
+/* Re-enable pointer events for the interactive parts if needed, 
+   but since the title acts as a button, we need it clickable */
+.book-title-mini {
+    pointer-events: auto;
+}
+
+.book-title-mini strong {
+    font-size: 1rem;
+    max-width: 300px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.book-title-mini span {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+
+/* Search Box */
+.search-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #0f172a;
+    border-radius: 8px;
+    padding: 2px 8px 2px 2px;
+    border: 1px solid #334155;
+    transition: border-color 0.2s;
+}
+
+.search-container:focus-within {
+    border-color: #64748b;
+}
+
+.search-box {
+    display: flex;
+}
+
+.search-box input {
+    background: #0f172a;
+    /* Explicit dark background */
+    border: none;
+    color: #ffffff;
+    /* Explicit white text */
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    width: 140px;
+    outline: none;
+}
+
+.search-box input::placeholder {
+    color: #64748b;
+}
+
+.search-box button {
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 0 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.search-results-nav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 1px solid #334155;
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+
+.search-results-nav button {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.mini-loader {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* Zoom Controls */
+.zoom-controls {
+    display: flex;
+    align-items: center;
+    background: #1e293b;
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.zoom-level {
+    font-size: 0.8rem;
+    padding: 0 8px;
+    min-width: 50px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+/* Main Area */
+.reader-main {
+    flex: 1;
+    display: flex;
+    position: relative;
+    background: #0f172a;
+    overflow: hidden;
+}
+
+/* TOC Sidebar */
+.outline-sidebar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 300px;
+    background: #1e293b;
+    z-index: 100;
+    border-right: 1px solid #334155;
+    display: flex;
+    flex-direction: column;
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(-100%);
+    }
+
+    to {
+        transform: translateX(0);
+    }
+}
+
+.sidebar-header {
+    padding: 1rem;
+    border-bottom: 1px solid #334155;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sidebar-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.sidebar-header button {
+    background: transparent;
+    border: none;
+    color: #f1f5f9;
+    font-size: 1.5rem;
+    cursor: pointer;
+}
+
+.outline-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.outline-list button {
+    width: 100%;
+    text-align: left;
+    background: transparent;
+    border: none;
+    color: #94a3b8;
+    padding: 0.75rem 1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.outline-list button:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+}
+
+.outline-list button.active {
+    background: rgba(59, 130, 246, 0.2);
+    color: #60a5fa;
+    border-left: 3px solid #60a5fa;
+    padding-left: calc(1rem - 3px);
+}
+
+/* Flipbook */
+.flipbook-wrapper {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+    overflow: hidden;
+    /* Completely disable scrolling */
+}
+
+.flipbook-wrapper::-webkit-scrollbar {
+    display: none;
+    /* Chrome, Safari, Opera */
+}
+
+.nama-flipbook {
+    box-shadow: 0 10px 50px rgba(0, 0, 0, 0.5);
+    margin: auto;
+    /* Center within the scrollable area */
+}
+
+.pdf-error {
+    color: #f87171;
+    text-align: center;
+    padding: 40px;
+    font-size: 1.1rem;
+    background: rgba(248, 113, 113, 0.1);
+    border-radius: 12px;
+    margin: auto;
+}
+
+.page-content {
+    background: white;
+    height: 100%;
+    width: 100%;
+    position: relative;
+    border-left: 1px solid rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    /* Keep content at top for proper reading flow */
+    overflow: hidden;
+}
+
+/* Ensure PDF pages (canvas) align correctly */
+.page-content .react-pdf__Page {
+    display: flex !important;
+    justify-content: center !important;
+    align-items: flex-start !important;
+}
+
+.page-content .react-pdf__Page__canvas {
+    max-width: 100% !important;
+    height: auto !important;
+}
+
+/* Text layer alignment */
+.page-content .react-pdf__Page__textContent {
+    top: 0 !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+}
+
+.search-highlight {
+    background-color: rgba(255, 215, 0, 0.35) !important;
+    /* Transparent Yellow */
+    border-bottom: 2px solid rgba(234, 179, 8, 0.5);
+    /* Semi-transparent border */
+    color: transparent;
+    cursor: text;
+    border-radius: 2px;
+    mix-blend-mode: multiply;
+}
+
+.page-footer {
+    position: absolute;
+    bottom: 10px;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+}
+
+/* Nav Buttons */
+.nav-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 50px;
+    height: 80px;
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(4px);
+    border: none;
+    color: white;
+    font-size: 2.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 40;
+    transition: all 0.3s;
+}
+
+.nav-btn:hover {
+    background: rgba(30, 41, 59, 0.9);
+}
+
+.nav-btn.prev {
+    left: 20px;
+    border-radius: 12px 0 0 12px;
+}
+
+.nav-btn.next {
+    right: 20px;
+    border-radius: 0 12px 12px 0;
+}
+
+.reader-loading {
+    height: 100vh;
+    background: #0f172a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Hide canvas focus outline */
+canvas {
+    outline: none;
+}
+
+@media (max-width: 768px) {
+    .book-reader-page {
+        /* Handle notches and safe areas */
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+        padding-left: env(safe-area-inset-left);
+        padding-right: env(safe-area-inset-right);
+    }
+
+    .reader-toolbar {
+        height: auto;
+        min-height: 50px;
+        padding: 8px;
+        padding-top: calc(8px + env(safe-area-inset-top));
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .toolbar-left,
+    .toolbar-right {
+        gap: 0.5rem;
+    }
+
+    .btn-icon {
+        width: 36px;
+        height: 36px;
+    }
+
+    .book-title-mini {
+        order: -1;
+        width: 100%;
+        margin-bottom: 4px;
+    }
+
+    .book-title-mini strong {
+        font-size: 0.85rem;
+        max-width: 90vw;
+    }
+
+    .book-title-mini span {
+        font-size: 0.7rem;
+    }
+
+    .search-container {
+        display: none;
+    }
+
+    .zoom-controls {
+        padding: 0;
+    }
+
+    .zoom-level {
+        min-width: 40px;
+        font-size: 0.7rem;
+    }
+
+    .reader-main {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .flipbook-wrapper {
+        padding: 5px;
+        padding-bottom: calc(5px + env(safe-area-inset-bottom));
+    }
+
+    .nama-flipbook {
+        max-width: 100vw !important;
+        max-height: calc(100vh - 120px - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
+    }
+
+    .page-content {
+        max-width: 100%;
+    }
+
+    .nav-btn {
+        width: 40px;
+        height: 60px;
+        font-size: 1.8rem;
+    }
+
+    .nav-btn.prev {
+        left: 5px;
+    }
+
+    .nav-btn.next {
+        right: 5px;
+    }
+
+    .outline-sidebar {
+        width: 100%;
+        max-width: 280px;
+    }
+
+    .page-footer {
+        font-size: 10px;
+    }
+
+    .pdf-error {
+        padding: 20px;
+        font-size: 0.9rem;
+    }
+}
+
+/* Extra small devices */
+@media (max-width: 400px) {
+    .reader-toolbar {
+        padding: 6px;
+    }
+
+    .btn-icon {
+        width: 32px;
+        height: 32px;
+    }
+
+    .zoom-controls .btn-icon svg {
+        width: 14px;
+        height: 14px;
+    }
+
+    .book-title-mini strong {
+        font-size: 0.75rem;
+    }
+
+    .nav-btn {
+        width: 35px;
+        height: 50px;
+        font-size: 1.5rem;
+    }
+}
+
+/* Optimization Styles */
+.page-placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fffcf5;
+    /* Warm paper tone */
+    color: #e2e8f0;
+}
+
+.page-number-watermark {
+    font-size: 3rem;
+    font-weight: bold;
+    opacity: 0.5;
+}
+
+.page-loader {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    width: 100%;
+    color: #94a3b8;
+    font-size: 0.9rem;
+    background: #fffcf5;
+}

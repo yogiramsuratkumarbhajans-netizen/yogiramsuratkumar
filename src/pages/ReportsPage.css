@@ -1,0 +1,109 @@
+/* ================================
+   Reports Page Styles - Enhanced
+   ================================ */
+
+.reports-page {
+    min-height: 100vh;
+    background: var(--gray-50);
+}
+
+.reports-main {
+    padding: var(--space-6) 0;
+}
+
+/* Report Sections */
+.report-section {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+    padding: var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.report-section h2 {
+    font-size: var(--text-lg);
+    color: var(--gray-800);
+    margin-bottom: var(--space-5);
+    font-family: var(--font-primary);
+    font-weight: 600;
+}
+
+/* Stats Grid 5 columns */
+.stats-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+}
+
+.reports-page .stat-card.highlight {
+    background: var(--gradient-primary);
+    border-color: var(--gold);
+}
+
+.reports-page .stat-card.highlight .stat-value {
+    color: var(--white);
+}
+
+.reports-page .stat-card.highlight .stat-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Count Cell */
+.count-cell {
+    font-weight: 700;
+    color: var(--saffron-dark);
+}
+
+/* Quote Section */
+.quote-section {
+    text-align: center;
+    padding: var(--space-6);
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-100);
+}
+
+.quote-section p {
+    font-family: var(--font-display);
+    font-style: italic;
+    color: var(--gray-500);
+    font-size: var(--text-base);
+    margin: 0;
+    line-height: 1.8;
+}
+
+/* Date Display */
+.date-range {
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--gray-600);
+    background: var(--cream-light);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+}
+
+.date-single {
+    font-size: var(--text-xs);
+    color: var(--gray-400);
+    font-style: italic;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .stats-grid-5 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .stats-grid-5 .stat-card:last-child {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-grid-5 {
+        grid-template-columns: 1fr;
+    }
+
+    .stats-grid-5 .stat-card:last-child {
+        grid-column: span 1;
+    }
+}

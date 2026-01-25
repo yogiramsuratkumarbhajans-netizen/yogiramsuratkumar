@@ -1,0 +1,184 @@
+/* Excel Upload Component Styles */
+
+.excel-upload {
+    padding: var(--space-6);
+}
+
+.upload-header {
+    margin-bottom: var(--space-6);
+}
+
+.upload-header h3 {
+    font-size: var(--text-lg);
+    color: var(--gray-900);
+    margin-bottom: var(--space-2);
+}
+
+.upload-header p {
+    color: var(--gray-500);
+    font-size: var(--text-sm);
+}
+
+.upload-actions {
+    margin-bottom: var(--space-4);
+}
+
+.upload-area {
+    margin-bottom: var(--space-6);
+}
+
+.upload-button {
+    width: 100%;
+    padding: var(--space-8);
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-lg);
+    background: var(--gray-50);
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+    transition: all var(--transition-base);
+    color: var(--gray-600);
+}
+
+.upload-button:hover {
+    border-color: var(--saffron);
+    background: var(--cream);
+}
+
+.upload-button svg {
+    color: var(--saffron);
+}
+
+.upload-button span {
+    font-weight: 500;
+}
+
+.upload-button small {
+    font-size: var(--text-xs);
+    color: var(--gray-400);
+}
+
+.upload-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    color: var(--gray-600);
+}
+
+.upload-errors {
+    background: var(--error-light);
+    border: 1px solid var(--error);
+    border-radius: var(--radius-md);
+    padding: var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.upload-errors h4 {
+    color: var(--error-dark);
+    font-size: var(--text-sm);
+    margin-bottom: var(--space-2);
+}
+
+.upload-errors ul {
+    margin: 0;
+    padding-left: var(--space-5);
+}
+
+.upload-errors li {
+    font-size: var(--text-sm);
+    color: var(--error-dark);
+    margin-bottom: var(--space-1);
+}
+
+.preview-section {
+    margin-bottom: var(--space-6);
+}
+
+.preview-section h4 {
+    font-size: var(--text-sm);
+    color: var(--gray-700);
+    margin-bottom: var(--space-3);
+}
+
+.preview-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius-md);
+}
+
+.preview-table {
+    width: 100%;
+    font-size: var(--text-sm);
+    border-collapse: collapse;
+}
+
+.preview-table th,
+.preview-table td {
+    padding: var(--space-2) var(--space-3);
+    text-align: left;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.preview-table th {
+    background: var(--gray-50);
+    font-weight: 600;
+    color: var(--gray-700);
+}
+
+.preview-more {
+    text-align: center;
+    color: var(--gray-500);
+    font-size: var(--text-sm);
+    padding: var(--space-2);
+}
+
+.default-accounts-section {
+    margin-bottom: var(--space-6);
+}
+
+.default-accounts-section h4 {
+    font-size: var(--text-sm);
+    color: var(--gray-700);
+    margin-bottom: var(--space-3);
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    cursor: pointer;
+    font-size: var(--text-sm);
+}
+
+.checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--saffron);
+}
+
+.checkbox-item input[type="checkbox"]:disabled {
+    opacity: 0.5;
+}
+
+.already-linked {
+    color: var(--gray-400);
+    font-style: italic;
+}
+
+.upload-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--gray-100);
+}

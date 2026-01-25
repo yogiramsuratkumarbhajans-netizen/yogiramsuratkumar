@@ -1,0 +1,250 @@
+/* ================================
+   Register Page Styles - Enhanced
+   ================================ */
+
+.register-page {
+    min-height: 100vh;
+    padding: var(--space-6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: pageSlideIn 0.6s ease-out;
+}
+
+@keyframes pageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.register-container {
+    width: 100%;
+    max-width: 580px;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--gray-600);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+    transition: color var(--transition-fast);
+}
+
+.back-link:hover {
+    color: var(--saffron-dark);
+}
+
+.register-card {
+    background: var(--white);
+    border-radius: var(--radius-2xl);
+    border: 1px solid var(--gray-200);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
+}
+
+.register-header {
+    text-align: center;
+    padding: var(--space-8);
+    background: var(--gradient-primary);
+    color: var(--white);
+}
+
+.register-header .om-symbol {
+    font-size: 2.5rem;
+    margin-bottom: var(--space-2);
+}
+
+.register-header h1 {
+    font-size: var(--text-2xl);
+    color: var(--white);
+    margin-bottom: var(--space-1);
+    font-family: var(--font-primary);
+    font-weight: 600;
+}
+
+.register-header p {
+    opacity: 0.9;
+    margin: 0;
+}
+
+.register-form {
+    padding: var(--space-6);
+}
+
+/* Required & Optional labels */
+.required {
+    color: var(--error);
+}
+
+.optional {
+    font-weight: 400;
+    color: var(--gray-400);
+    font-size: var(--text-sm);
+}
+
+/* Form Rows */
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+}
+
+.form-row-3 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+/* Form Sections */
+.form-section {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--gray-100);
+}
+
+.section-title {
+    font-size: var(--text-base);
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-bottom: var(--space-2);
+    font-family: var(--font-primary);
+}
+
+.section-subtitle {
+    font-size: var(--text-sm);
+    color: var(--gray-500);
+    margin-bottom: var(--space-4);
+}
+
+/* Accounts Loading State */
+.accounts-loading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--gray-500);
+    font-size: var(--text-sm);
+}
+
+.no-accounts {
+    color: var(--gray-500);
+    font-style: italic;
+}
+
+/* Photo Upload Styles */
+.photo-upload-area {
+    margin-top: var(--space-4);
+}
+
+.photo-upload-label {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    background: var(--gray-50);
+    border: 2px dashed var(--gray-300);
+    border-radius: var(--radius-xl);
+    cursor: pointer;
+    transition: all var(--transition-base);
+}
+
+.photo-upload-label:hover {
+    border-color: var(--saffron);
+    background: var(--cream);
+}
+
+.upload-icon {
+    color: var(--gray-400);
+    margin-bottom: var(--space-2);
+}
+
+.photo-upload-label span {
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+    font-weight: 500;
+}
+
+.photo-upload-label small {
+    font-size: var(--text-xs);
+    color: var(--gray-400);
+    margin-top: var(--space-1);
+}
+
+.photo-preview {
+    position: relative;
+    display: inline-block;
+}
+
+.photo-preview img {
+    width: 120px;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 3px solid var(--saffron);
+}
+
+.remove-photo-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: var(--error);
+    color: var(--white);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform var(--transition-fast);
+}
+
+.remove-photo-btn:hover {
+    transform: scale(1.1);
+}
+
+.register-footer {
+    text-align: center;
+    padding: var(--space-4) var(--space-6);
+    background: var(--gray-50);
+    border-top: 1px solid var(--gray-100);
+}
+
+.register-footer p {
+    margin: 0;
+    color: var(--gray-600);
+}
+
+.register-footer a {
+    color: var(--saffron-dark);
+    font-weight: 500;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .register-page {
+        padding: var(--space-4);
+        align-items: flex-start;
+        padding-top: var(--space-6);
+    }
+
+    .form-row,
+    .form-row-3 {
+        grid-template-columns: 1fr;
+    }
+
+    .register-header {
+        padding: var(--space-6);
+    }
+
+    .register-form {
+        padding: var(--space-4);
+    }
+}

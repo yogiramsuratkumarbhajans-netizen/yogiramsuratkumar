@@ -1,0 +1,107 @@
+/* ================================
+   Admin Login Page Styles - Enhanced
+   ================================ */
+
+.admin-login-page {
+    min-height: 100vh;
+    padding: var(--space-6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
+}
+
+.admin-login-container {
+    width: 100%;
+    max-width: 420px;
+}
+
+.admin-login-container .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: rgba(255, 255, 255, 0.6);
+    margin-bottom: var(--space-4);
+    font-size: var(--text-sm);
+    transition: color var(--transition-fast);
+}
+
+.admin-login-container .back-link:hover {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.admin-login-card {
+    background: rgba(255, 255, 255, 0.98);
+    backdrop-filter: blur(10px);
+    border-radius: var(--radius-2xl);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.admin-login-header {
+    text-align: center;
+    padding: var(--space-8);
+    background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+    color: var(--white);
+}
+
+.admin-icon {
+    width: 64px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-xl);
+    margin: 0 auto var(--space-4);
+    color: var(--gold);
+}
+
+.admin-login-header h1 {
+    font-size: var(--text-2xl);
+    color: var(--white);
+    margin-bottom: var(--space-1);
+    font-family: var(--font-primary);
+    font-weight: 600;
+}
+
+.admin-login-header p {
+    opacity: 0.7;
+    margin: 0;
+    font-size: var(--text-sm);
+}
+
+.admin-login-form {
+    padding: var(--space-6);
+}
+
+.admin-login-footer {
+    text-align: center;
+    padding: var(--space-4) var(--space-6);
+    background: var(--gray-50);
+    border-top: 1px solid var(--gray-100);
+}
+
+.security-note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-sm);
+    color: var(--gray-500);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .admin-login-page {
+        padding: var(--space-4);
+    }
+
+    .admin-login-header {
+        padding: var(--space-6);
+    }
+
+    .admin-login-form {
+        padding: var(--space-4);
+    }
+}

@@ -1,0 +1,118 @@
+.audio-upload-container {
+    background: white;
+    border-radius: 12px;
+    padding: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Drop Zone */
+.audio-drop {
+    border: 2px dashed #ddd;
+    border-radius: 12px;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #fafafa;
+}
+
+.audio-drop:hover {
+    border-color: #4CAF50;
+    background: rgba(76, 175, 80, 0.05);
+}
+
+/* File List */
+.file-list-section {
+    margin-top: 1.5rem;
+}
+
+.file-list-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+    color: var(--text-secondary, #666);
+}
+
+.file-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    background: #f8f9fa;
+    border-radius: 8px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+}
+
+.file-item:hover {
+    background: #f0f0f0;
+}
+
+.file-item.uploading {
+    opacity: 0.7;
+}
+
+.file-item.success {
+    background: rgba(39, 174, 96, 0.1);
+    border-left: 3px solid #27ae60;
+}
+
+.file-item.error {
+    background: rgba(231, 76, 60, 0.1);
+    border-left: 3px solid #e74c3c;
+}
+
+.file-icon {
+    font-size: 1.5rem;
+}
+
+.file-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.file-name {
+    font-weight: 500;
+    color: var(--text-primary, #333);
+    font-size: 0.9rem;
+}
+
+.file-size {
+    font-size: 0.75rem;
+    color: var(--text-secondary, #888);
+}
+
+.file-status {
+    display: flex;
+    align-items: center;
+}
+
+.file-status .status {
+    font-size: 1.2rem;
+}
+
+.file-status .remove-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: #fff;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    color: #e74c3c;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.file-status .remove-btn:hover {
+    background: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}

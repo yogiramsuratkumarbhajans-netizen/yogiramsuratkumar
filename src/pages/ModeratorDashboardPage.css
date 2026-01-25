@@ -1,0 +1,504 @@
+/* ================================
+   Moderator Dashboard Styles
+   ================================ */
+
+.moderator-dashboard {
+    min-height: 100vh;
+    background: var(--gray-50);
+}
+
+.moderator-dashboard .dashboard-header {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    padding: var(--space-4) 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.moderator-dashboard .header-content {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.moderator-dashboard .header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.moderator-dashboard .header-left h1 {
+    font-size: var(--text-xl);
+    color: var(--gray-900);
+    margin: 0;
+}
+
+.moderator-dashboard .welcome-text {
+    font-size: var(--text-sm);
+    color: var(--gray-500);
+    margin: 0;
+}
+
+.moderator-dashboard .header-right {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.moderator-dashboard .dashboard-main {
+    padding: var(--space-6) 0;
+}
+
+/* Info Section */
+.info-section {
+    margin-bottom: var(--space-8);
+}
+
+.info-card {
+    background: linear-gradient(135deg, var(--cream) 0%, var(--white) 100%);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--saffron-light);
+    padding: var(--space-6);
+}
+
+.info-card h3 {
+    font-size: var(--text-lg);
+    color: var(--maroon);
+    margin-bottom: var(--space-4);
+}
+
+.capabilities-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--space-3);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.capabilities-list li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--text-sm);
+}
+
+.capabilities-list li.can-do {
+    color: var(--success);
+}
+
+.capabilities-list li.cannot-do {
+    color: var(--gray-400);
+}
+
+/* Accounts Section */
+.accounts-section {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    border: 1px solid var(--gray-200);
+    padding: var(--space-6);
+}
+
+.section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-6);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+.section-header h2 {
+    font-size: var(--text-xl);
+    color: var(--gray-900);
+    margin: 0;
+}
+
+/* Accounts Grid */
+.accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--space-4);
+}
+
+.account-card {
+    background: var(--gray-50);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--gray-200);
+    padding: var(--space-5);
+    transition: all var(--transition-base);
+}
+
+.account-card:hover {
+    border-color: var(--saffron-light);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.account-card.inactive {
+    opacity: 0.7;
+}
+
+.account-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: var(--space-3);
+}
+
+.account-header h3 {
+    font-size: var(--text-base);
+    color: var(--gray-900);
+    margin: 0;
+}
+
+.status-badge {
+    font-size: var(--text-xs);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-full);
+    font-weight: 500;
+}
+
+.status-badge.active {
+    background: var(--success-light);
+    color: var(--success-dark);
+}
+
+.status-badge.inactive {
+    background: var(--gray-200);
+    color: var(--gray-600);
+}
+
+.account-description {
+    font-size: var(--text-sm);
+    color: var(--gray-500);
+    margin-bottom: var(--space-4);
+    line-height: 1.5;
+}
+
+.account-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+/* Loading and Empty States */
+.loading-state,
+.empty-state {
+    text-align: center;
+    padding: var(--space-10);
+    color: var(--gray-500);
+}
+
+.loading-state .loader {
+    margin-bottom: var(--space-4);
+}
+
+/* Modal Styles */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: var(--space-4);
+}
+
+.modal {
+    background: var(--white);
+    border-radius: var(--radius-xl);
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-5) var(--space-6);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.modal-header h2 {
+    font-size: var(--text-lg);
+    color: var(--gray-900);
+    margin: 0;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    padding: var(--space-1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    transition: all var(--transition-fast);
+}
+
+.modal-close:hover {
+    color: var(--gray-600);
+    background: var(--gray-100);
+}
+
+.modal-body {
+    padding: var(--space-6);
+}
+
+.modal-body .form-group+.form-group {
+    margin-top: var(--space-5);
+}
+
+.modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-6);
+    border-top: 1px solid var(--gray-100);
+    background: var(--gray-50);
+}
+
+/* Form Row for side-by-side fields */
+.modal-body .form-row {
+    display: flex;
+    flex-direction: row;
+    gap: var(--space-4);
+    align-items: flex-start;
+}
+
+.modal-body .form-row>.form-group {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+.modal-body .form-row .form-group .form-label {
+    display: block;
+    margin-bottom: var(--space-2);
+    white-space: nowrap;
+}
+
+.modal-body .form-row .form-group .form-input {
+    width: 100%;
+}
+
+.modal-body .form-row+.form-group {
+    margin-top: var(--space-5);
+}
+
+.modal-body .required {
+    color: var(--error);
+}
+
+.modal-body .target-label {
+    display: block;
+    margin-top: var(--space-2);
+    font-size: var(--text-sm);
+    color: var(--saffron-dark);
+    font-weight: 600;
+}
+
+/* Tab Navigation */
+.tab-navigation {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+    border-bottom: 2px solid var(--gray-200);
+    padding-bottom: var(--space-2);
+}
+
+.tab-btn {
+    padding: var(--space-3) var(--space-5);
+    border: none;
+    background: transparent;
+    font-size: var(--text-sm);
+    font-weight: 500;
+    color: var(--gray-500);
+    cursor: pointer;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    transition: all var(--transition-base);
+}
+
+.tab-btn:hover {
+    color: var(--gray-700);
+    background: var(--gray-100);
+}
+
+.tab-btn.active {
+    color: var(--saffron);
+    background: var(--cream);
+    border-bottom: 2px solid var(--saffron);
+    margin-bottom: -2px;
+}
+
+/* Users Table */
+.table-container {
+    overflow-x: auto;
+    background: var(--white);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow);
+}
+
+.users-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.users-table th,
+.users-table td {
+    padding: var(--space-3) var(--space-4);
+    text-align: left;
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.users-table th {
+    background: var(--gray-50);
+    font-weight: 600;
+    font-size: var(--text-sm);
+    color: var(--gray-600);
+}
+
+.users-table td {
+    font-size: var(--text-sm);
+}
+
+/* Checkbox Group */
+.checkbox-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    cursor: pointer;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    transition: background var(--transition-fast);
+}
+
+.checkbox-item:hover {
+    background: var(--gray-50);
+}
+
+.checkbox-item input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--saffron);
+}
+
+.checkbox-item input[type="checkbox"]:disabled {
+    opacity: 0.5;
+}
+
+.already-linked {
+    color: var(--gray-400);
+    font-style: italic;
+}
+
+.modal-description {
+    color: var(--gray-600);
+    margin-bottom: var(--space-4);
+}
+
+/* Prayer Review Cards */
+.prayer-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: var(--space-5);
+}
+
+.prayer-review-card {
+    background: var(--white);
+    border-radius: var(--radius-md);
+    padding: var(--space-5);
+    box-shadow: var(--shadow);
+    border: 1px solid var(--gray-100);
+}
+
+.prayer-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-3);
+}
+
+.prayer-meta .prayer-author {
+    font-weight: 600;
+    color: var(--saffron-dark);
+}
+
+.prayer-meta .prayer-privacy {
+    font-size: var(--text-xs);
+    padding: 2px 8px;
+    background: var(--gray-100);
+    border-radius: var(--radius-sm);
+    color: var(--gray-600);
+    text-transform: capitalize;
+}
+
+.prayer-review-card .prayer-text {
+    color: var(--gray-700);
+    line-height: 1.6;
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--gray-50);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+}
+
+.prayer-info {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    font-size: var(--text-xs);
+    color: var(--gray-500);
+    margin-bottom: var(--space-4);
+}
+
+.prayer-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .moderator-dashboard .header-content {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .capabilities-list {
+        grid-template-columns: 1fr;
+    }
+
+    .accounts-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .tab-navigation {
+        flex-wrap: wrap;
+    }
+}
