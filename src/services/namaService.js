@@ -562,6 +562,16 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
 
     // Helper to delay execution
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+    
+    // Helper to normalize WhatsApp number
+    const normalizeWhatsApp = (whatsapp) => {
+        if (!whatsapp) return '';
+        // Keep only digits and + sign
+        let normalized = String(whatsapp).replace(/[^\d+]/g, '');
+        // If it starts with multiple + signs, keep only one
+        normalized = normalized.replace(/^\++/, '+');
+        return normalized;
+    };
 
     // Process users in batches
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
@@ -570,13 +580,16 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
         // Process batch sequentially (to avoid rate limits)
         for (const userData of batch) {
             try {
+                // Normalize the WhatsApp number
+                const normalizedWhatsApp = normalizeWhatsApp(userData.whatsapp);
+                
                 // Check if user already exists (by whatsapp number)
                 let existingUser = null;
                 try {
                     const existingCheck = await databases.listDocuments(
                         DATABASE_ID,
                         COLLECTIONS.USERS,
-                        [Query.equal('whatsapp', userData.whatsapp), Query.limit(1)]
+                        [Query.equal('whatsapp', normalizedWhatsApp), Query.limit(1)]
                     );
                     if (existingCheck.documents.length > 0) {
                         existingUser = existingCheck.documents[0];
@@ -588,13 +601,17 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                 if (existingUser) {
                     errors.push({
                         user: userData,
-                        error: `User with WhatsApp ${userData.whatsapp} already exists`,
+                        error: `User with WhatsApp ${normalizedWhatsApp} already exists`,
                         type: 'duplicate'
                     });
                     continue;
                 }
 
-                console.log('Creating user with data:', userData); // Debug log
+                // Generate email from normalized phone number
+                const emailPhone = normalizedWhatsApp.replace(/[^0-9]/g, '');
+                const email = userData.email || `${emailPhone}@namavruksha.org`;
+
+                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp }); // Debug log
 
                 const newUser = await databases.createDocument(
                     DATABASE_ID,
@@ -602,9 +619,9 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                     ID.unique(),
                     {
                         name: userData.name,
-                        email: userData.email || `${userData.whatsapp.replace(/[^0-9]/g, '')}@namavruksha.org`, // Safety net
-                        whatsapp: userData.whatsapp,
-                        password: userData.password, // Corrected attribute name
+                        email: email,
+                        whatsapp: normalizedWhatsApp,
+                        password: String(userData.password), // Ensure password is string
                         city: userData.city || null,
                         state: userData.state || null,
                         country: userData.country || null,
@@ -1188,13 +1205,30 @@ export const submitFeedback = async (feedbackData, userId = null) => {
         data.user_id = userId;
     }
 
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.FEEDBACK,
-        ID.unique(),
-        data
-    );
-    return { ...response, id: response.$id };
+    try {
+        const response = await databases.createDocument(
+            DATABASE_ID,
+            COLLECTIONS.FEEDBACK,
+            ID.unique(),
+            data
+        );
+        return { ...response, id: response.$id, savedToDb: true };
+    } catch (err) {
+        // If collection doesn't exist, return success with flag indicating email-only
+        // This allows the caller to still send email notification
+        if (err.code === 404 || 
+            (err.message && (err.message.includes('Collection not found') || 
+             err.message.includes('not found') ||
+             err.message.includes('does not exist')))) {
+            console.warn('Feedback collection not found in Appwrite. Returning success for email-only flow.');
+            return { 
+                id: 'email-only-' + Date.now(), 
+                savedToDb: false,
+                ...data 
+            };
+        }
+        throw err;
+    }
 };
 
 export const getAllFeedback = async () => {

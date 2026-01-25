@@ -66,17 +66,12 @@ const DashboardPage = () => {
         }
 
         setSubmittingFeedback(true);
-        try {
-            await submitFeedback({
-                type: feedbackForm.type,
-                subject: feedbackForm.subject,
-                message: feedbackForm.message,
-                userName: user?.name,
-                userContact: user?.whatsapp || user?.email
-            }, user?.$id);
+        let dbSaveSuccess = false;
+        let emailSent = false;
 
-            // Send email notification to admin/moderator
-            // Use try-catch for email to not block success flow if email fails
+        try {
+            // First, try to send email notification (most important)
+            // This ensures the admin gets notified even if DB save fails
             try {
                 const feedbackTypeMap = {
                     sankalpa_suggestion: 'New Sankalpa Request',
@@ -85,31 +80,55 @@ const DashboardPage = () => {
                 };
                 const typeLabel = feedbackTypeMap[feedbackForm.type] || 'Feedback';
                 const emailSubject = `[Namavruksha] ${typeLabel} from ${user?.name}`;
-                const emailMessage = `Type: ${typeLabel}\nSubject: ${feedbackForm.subject}\nMessage: ${feedbackForm.message}\nUser: ${user?.name} (${user?.whatsapp || user?.email || 'N/A'})`;
+                const emailMessage = `Type: ${typeLabel}
+Subject: ${feedbackForm.subject}
+Message: ${feedbackForm.message}
+
+User: ${user?.name}
+Contact: ${user?.whatsapp || user?.email || 'N/A'}
+User ID: ${user?.$id || user?.id || 'N/A'}
+
+Submitted at: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`;
 
                 await sendNotificationEmail({
                     to: 'yogiramsuratkumarbhajans@gmail.com',
                     subject: emailSubject,
                     message: emailMessage
                 });
+                emailSent = true;
             } catch (emailErr) {
                 console.error('Failed to send feedback notification email:', emailErr);
-                // Continue execution - feedback was saved to DB
+                // Continue - we'll try to save to DB as backup
             }
 
-            success('Thank you! Your suggestion has been submitted.');
-            setFeedbackForm({ type: 'sankalpa_suggestion', subject: '', message: '' });
-            setShowFeedbackModal(false);
+            // Then try to save to database (as backup/record keeping)
+            try {
+                const result = await submitFeedback({
+                    type: feedbackForm.type,
+                    subject: feedbackForm.subject,
+                    message: feedbackForm.message,
+                    userName: user?.name,
+                    userContact: user?.whatsapp || user?.email
+                }, user?.$id);
+                
+                dbSaveSuccess = result.savedToDb !== false;
+            } catch (dbErr) {
+                console.error('Failed to save feedback to database:', dbErr);
+                // Continue - email was likely sent successfully
+            }
+
+            // Success if either email was sent OR DB save succeeded
+            if (emailSent || dbSaveSuccess) {
+                success('Thank you! Your suggestion has been submitted.');
+                setFeedbackForm({ type: 'sankalpa_suggestion', subject: '', message: '' });
+                setShowFeedbackModal(false);
+            } else {
+                // Both failed
+                error('Failed to submit. Please try again later or contact us directly.');
+            }
         } catch (err) {
             console.error('Feedback submission error:', err);
-            // Check for specific Appwrite errors
-            if (err.code === 404) {
-                error('Feedback service currently unavailable (Collection not found). Please contact admin.');
-            } else if (err.message && err.message.includes('Collection not found')) {
-                error('Feedback configuration missing. Please report to admin.');
-            } else {
-                error('Failed to submit. Please try again later.');
-            }
+            error('Failed to submit. Please try again later.');
         } finally {
             setSubmittingFeedback(false);
         }

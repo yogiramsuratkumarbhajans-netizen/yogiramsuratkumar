@@ -104,8 +104,9 @@ const AudioPlayerPage = () => {
     const handleAudioEnded = () => {
         const now = Date.now();
 
-        // Debounce: Ignore if called within 500ms of last call
-        if (now - lastEndTimeRef.current < 500) {
+        // Debounce: Ignore if called within 1000ms of last call (increased from 500ms)
+        // This prevents rapid triggers that can occur with some audio files
+        if (now - lastEndTimeRef.current < 1000) {
             console.log('Audio ended debounced - ignoring rapid trigger');
             return;
         }
@@ -114,6 +115,16 @@ const AudioPlayerPage = () => {
         if (isProcessingEndRef.current) {
             console.log('Audio ended already processing - ignoring');
             return;
+        }
+
+        // Additional guard: Check if audio is actually at the end
+        // This prevents false triggers from seeking or other events
+        if (audioRef.current && audioRef.current.duration > 0) {
+            const remaining = audioRef.current.duration - audioRef.current.currentTime;
+            if (remaining > 0.5) {
+                console.log('Audio not actually ended - remaining:', remaining);
+                return;
+            }
         }
 
         isProcessingEndRef.current = true;
@@ -129,15 +140,22 @@ const AudioPlayerPage = () => {
 
         // Always loop - only stop when user manually stops
         if (isPlayingRef.current && audioRef.current) {
-            audioRef.current.currentTime = 0;
-            audioRef.current.play()
-                .then(() => {
+            // Use setTimeout to ensure state has updated before replaying
+            setTimeout(() => {
+                if (audioRef.current && isPlayingRef.current) {
+                    audioRef.current.currentTime = 0;
+                    audioRef.current.play()
+                        .then(() => {
+                            isProcessingEndRef.current = false;
+                        })
+                        .catch(err => {
+                            console.log('Replay failed:', err);
+                            isProcessingEndRef.current = false;
+                        });
+                } else {
                     isProcessingEndRef.current = false;
-                })
-                .catch(err => {
-                    console.log('Replay failed:', err);
-                    isProcessingEndRef.current = false;
-                });
+                }
+            }, 100);
         } else {
             isProcessingEndRef.current = false;
         }

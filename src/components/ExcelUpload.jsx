@@ -64,7 +64,26 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                             normalizedKey = 'email';
                         }
 
-                        normalized[normalizedKey] = String(row[key]).trim();
+                        let value = String(row[key]).trim();
+                        
+                        // Special handling for WhatsApp/phone numbers
+                        // Preserve + prefix and digits, handle Excel number formatting
+                        if (normalizedKey === 'whatsapp') {
+                            // If Excel treated it as a number, it may have lost the + prefix
+                            // Clean up: keep only digits and +
+                            value = value.replace(/[^\d+]/g, '');
+                            // If no + prefix and number is > 10 digits, it likely has country code
+                            // Don't auto-add + as user may have entered with or without it
+                        }
+                        
+                        // Special handling for password - ensure it's always a string
+                        // Excel may treat numeric passwords as numbers (losing leading zeros)
+                        if (normalizedKey === 'password') {
+                            // Keep as-is, just ensure it's a string
+                            value = String(row[key]);
+                        }
+
+                        normalized[normalizedKey] = value;
                     });
 
                     // Auto-generate email if missing but whatsapp exists
@@ -104,8 +123,11 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                     if (!row.name || row.name.length < 2) {
                         validationErrors.push(`Row ${rowNum}: Name is required (min 2 characters)`);
                     }
-                    if (!row.whatsapp || row.whatsapp.length < 10) {
-                        validationErrors.push(`Row ${rowNum}: Valid WhatsApp number is required`);
+                    // Validate WhatsApp: extract digits only for length check
+                    // International numbers may have country code (e.g., +19047673366)
+                    const whatsappDigits = (row.whatsapp || '').replace(/[^\d]/g, '');
+                    if (!row.whatsapp || whatsappDigits.length < 10 || whatsappDigits.length > 15) {
+                        validationErrors.push(`Row ${rowNum}: Valid WhatsApp number is required (10-15 digits)`);
                     }
                     if (!row.password || row.password.length < 4) {
                         validationErrors.push(`Row ${rowNum}: Password is required (min 4 characters)`);
