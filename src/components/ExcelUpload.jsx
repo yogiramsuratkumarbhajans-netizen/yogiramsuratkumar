@@ -10,7 +10,7 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
     const fileInputRef = useRef(null);
 
     const requiredColumns = ['name', 'whatsapp', 'password'];
-    const optionalColumns = ['city', 'state', 'country'];
+    const optionalColumns = ['city', 'state', 'country', 'country_code'];
 
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0];
@@ -63,6 +63,9 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                         if (['mail', 'e-mail', 'email_id'].includes(normalizedKey)) {
                             normalizedKey = 'email';
                         }
+                        if (['countrycode', 'country_code', 'cc', 'dial_code'].includes(normalizedKey)) {
+                            normalizedKey = 'country_code';
+                        }
 
                         let value = String(row[key]).trim();
                         
@@ -91,6 +94,20 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                         // Remove special chars from whatsapp for cleaner email
                         const cleanPhone = normalized.whatsapp.replace(/[^0-9]/g, '');
                         normalized.email = `${cleanPhone}@namavruksha.org`;
+                    }
+
+                    // Combine country_code with whatsapp if provided separately
+                    if (normalized.country_code && normalized.whatsapp) {
+                        let countryCode = String(normalized.country_code).replace(/[^\d+]/g, '');
+                        let phone = String(normalized.whatsapp).replace(/[^\d]/g, '');
+                        
+                        // Add + prefix to country code if not present
+                        if (countryCode && !countryCode.startsWith('+')) {
+                            countryCode = '+' + countryCode;
+                        }
+                        
+                        // Combine: +91 + 9876543210 = +919876543210
+                        normalized.whatsapp = countryCode + phone;
                     }
 
                     return normalized;
@@ -178,16 +195,42 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
     };
 
     const downloadTemplate = () => {
-        const templateData = [{
-            Name: 'Example User',
-            Email: 'example@email.com',
-            WhatsApp: '+919876543210',
-            Password: 'password123',
-            City: 'Chennai',
-            State: 'Tamil Nadu',
-            Country: 'India'
-        }];
+        const templateData = [
+            {
+                Name: 'Example User 1',
+                Email: 'example1@email.com',
+                Country_Code: '+91',
+                WhatsApp: '9876543210',
+                Password: 'password123',
+                City: 'Chennai',
+                State: 'Tamil Nadu',
+                Country: 'India'
+            },
+            {
+                Name: 'Example User 2',
+                Email: 'example2@email.com',
+                Country_Code: '+1',
+                WhatsApp: '2025551234',
+                Password: 'mypassword',
+                City: 'New York',
+                State: 'NY',
+                Country: 'USA'
+            }
+        ];
         const ws = XLSX.utils.json_to_sheet(templateData);
+        
+        // Set column widths
+        ws['!cols'] = [
+            { wch: 20 },  // Name
+            { wch: 25 },  // Email
+            { wch: 12 },  // Country_Code
+            { wch: 15 },  // WhatsApp
+            { wch: 15 },  // Password
+            { wch: 15 },  // City
+            { wch: 15 },  // State
+            { wch: 12 }   // Country
+        ];
+        
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Devotees');
         XLSX.writeFile(wb, 'devotees_template.xlsx');
@@ -216,7 +259,10 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                     <span style={{ fontFamily: 'monospace', background: '#ffeeba', padding: '2px 6px', borderRadius: '3px' }}>Password</span>
                 </div>
                 <div style={{ marginTop: '6px', color: '#6c757d', fontSize: '0.8rem' }}>
-                    Optional/Recommended: Email, City, State, Country
+                    Optional: Email, Country_Code (e.g., +91), City, State, Country
+                </div>
+                <div style={{ marginTop: '4px', color: '#28a745', fontSize: '0.8rem' }}>
+                    💡 Tip: Use Country_Code column separately (e.g., +91) to avoid Excel number formatting issues
                 </div>
             </div>
 

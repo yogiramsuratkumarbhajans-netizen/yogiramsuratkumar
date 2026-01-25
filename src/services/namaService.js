@@ -587,9 +587,13 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                 // Generate email from normalized phone number
                 const emailPhone = normalizedWhatsApp.replace(/[^0-9]/g, '');
                 const email = userData.email || `${emailPhone}@namavruksha.org`;
+                const passwordStr = String(userData.password).trim();
 
-                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp }); // Debug log
+                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp, email }); // Debug log
 
+                // Create database user record
+                // Users will login via database authentication (password stored in DB)
+                // This works for bulk uploads without needing Appwrite Auth accounts
                 const newUser = await databases.createDocument(
                     DATABASE_ID,
                     COLLECTIONS.USERS,
@@ -598,7 +602,7 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                         name: userData.name,
                         email: email,
                         whatsapp: normalizedWhatsApp,
-                        password: String(userData.password), // Ensure password is string
+                        password: passwordStr, // Store password for database-based login
                         city: userData.city || null,
                         state: userData.state || null,
                         country: userData.country || null,
@@ -903,23 +907,31 @@ export const updateBook = async (id, updates) => {
 
 export const deleteUser = async (id, moderatorId = null) => {
     // 1. Delete user entries
-    const entriesResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [Query.equal('user_id', id)]
-    );
-    for (const entry of entriesResponse.documents) {
-        await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, entry.$id);
+    try {
+        const entriesResponse = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.NAMA_ENTRIES,
+            [Query.equal('user_id', id)]
+        );
+        for (const entry of entriesResponse.documents) {
+            await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, entry.$id);
+        }
+    } catch (e) {
+        console.warn('Error deleting user entries:', e.message);
     }
 
     // 2. Delete user account links
-    const linksResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USER_ACCOUNT_LINKS,
-        [Query.equal('user_id', id)]
-    );
-    for (const link of linksResponse.documents) {
-        await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, link.$id);
+    try {
+        const linksResponse = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.USER_ACCOUNT_LINKS,
+            [Query.equal('user_id', id)]
+        );
+        for (const link of linksResponse.documents) {
+            await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, link.$id);
+        }
+    } catch (e) {
+        console.warn('Error deleting user account links:', e.message);
     }
 
     // 3. Delete password resets (if collection exists)
@@ -936,8 +948,16 @@ export const deleteUser = async (id, moderatorId = null) => {
         // Collection might not exist
     }
 
-    // 4. Delete user
-    await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USERS, id);
+    // 4. Delete user (may already be deleted)
+    try {
+        await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USERS, id);
+    } catch (e) {
+        if (e.code === 404 || e.message?.includes('not be found') || e.message?.includes('not found')) {
+            console.warn('User already deleted or not found:', id);
+        } else {
+            throw e;
+        }
+    }
 };
 
 export const deletePrayer = async (id, moderatorId = null) => {
@@ -1103,8 +1123,17 @@ export const approveUserDeletion = async (requestId) => {
     // Get the request
     const request = await databases.getDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, requestId);
 
-    // Delete the user
-    await deleteUser(request.user_id);
+    // Try to delete the user (may already be deleted)
+    try {
+        await deleteUser(request.user_id);
+    } catch (err) {
+        // If user not found, that's okay - they may have been deleted already
+        if (err.code === 404 || err.message?.includes('not be found') || err.message?.includes('not found')) {
+            console.warn('User already deleted or not found:', request.user_id);
+        } else {
+            throw err; // Re-throw other errors
+        }
+    }
 
     // Update request status
     await databases.updateDocument(

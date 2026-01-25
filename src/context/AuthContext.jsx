@@ -71,6 +71,32 @@ export const AuthProvider = ({ children }) => {
             // Check for admin/moderator in localStorage
             checkOtherRoles();
 
+            // Check for database-authenticated user in localStorage
+            const storedDbUser = localStorage.getItem('namabank_db_user');
+            if (storedDbUser) {
+                try {
+                    const dbUserData = JSON.parse(storedDbUser);
+                    // Verify user still exists in database
+                    const response = await databases.listDocuments(
+                        DATABASE_ID,
+                        COLLECTIONS.USERS,
+                        [Query.equal('email', dbUserData.email), Query.limit(1)]
+                    );
+                    if (response.documents.length > 0) {
+                        const freshUser = response.documents[0];
+                        setUser(freshUser);
+                        fetchLinkedAccounts(freshUser.$id);
+                        setLoading(false);
+                        return;
+                    } else {
+                        // User no longer exists, clear storage
+                        localStorage.removeItem('namabank_db_user');
+                    }
+                } catch (e) {
+                    localStorage.removeItem('namabank_db_user');
+                }
+            }
+
             // Try to get current Appwrite session
             const session = await account.get();
             if (session) {
@@ -160,7 +186,7 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
-    const login = async (email, password) => {
+    const login = async (emailOrPhone, password) => {
         try {
             // Clear any existing session first
             try {
@@ -168,9 +194,99 @@ export const AuthProvider = ({ children }) => {
             } catch (e) {
                 // No active session, that's fine
             }
+            // Clear any stored database user
+            localStorage.removeItem('namabank_db_user');
 
-            // Create email/password session with Appwrite
-            await account.createEmailPasswordSession(email, password);
+            // Normalize input - could be email or phone number
+            const input = String(emailOrPhone).trim().toLowerCase();
+            
+            // First, try database-based authentication (for bulk-uploaded users)
+            try {
+                let dbUser = null;
+                
+                // Try to find user by email first
+                let dbUsers = await databases.listDocuments(
+                    DATABASE_ID,
+                    COLLECTIONS.USERS,
+                    [Query.equal('email', input), Query.limit(1)]
+                );
+                
+                if (dbUsers.documents.length > 0) {
+                    dbUser = dbUsers.documents[0];
+                } else {
+                    // Try to find by whatsapp number
+                    const phoneDigits = input.replace(/[^\d+]/g, '');
+                    if (phoneDigits.length >= 10) {
+                        dbUsers = await databases.listDocuments(
+                            DATABASE_ID,
+                            COLLECTIONS.USERS,
+                            [Query.equal('whatsapp', phoneDigits), Query.limit(1)]
+                        );
+                        if (dbUsers.documents.length > 0) {
+                            dbUser = dbUsers.documents[0];
+                        } else {
+                            // Try with + prefix
+                            dbUsers = await databases.listDocuments(
+                                DATABASE_ID,
+                                COLLECTIONS.USERS,
+                                [Query.equal('whatsapp', '+' + phoneDigits.replace(/^\+/, '')), Query.limit(1)]
+                            );
+                            if (dbUsers.documents.length > 0) {
+                                dbUser = dbUsers.documents[0];
+                            }
+                        }
+                    }
+                }
+
+                if (dbUser) {
+                    console.log('Found user in database:', dbUser.email, dbUser.name);
+                    
+                    // Check if user is active
+                    if (!dbUser.is_active) {
+                        return { success: false, error: 'Your account has been disabled. Please contact admin.' };
+                    }
+                    
+                    // Check if password matches (stored in database)
+                    const storedPassword = String(dbUser.password || '').trim();
+                    const inputPassword = String(password).trim();
+                    
+                    console.log('Comparing passwords:', { stored: storedPassword, input: inputPassword, match: storedPassword === inputPassword });
+                    
+                    if (storedPassword && storedPassword === inputPassword) {
+                        console.log('Database authentication successful for:', dbUser.email);
+                        
+                        // Store user in localStorage for session persistence
+                        localStorage.setItem('namabank_db_user', JSON.stringify({
+                            $id: dbUser.$id,
+                            email: dbUser.email,
+                            name: dbUser.name
+                        }));
+                        
+                        // Check if user has an auth_id (Appwrite Auth account)
+                        if (dbUser.auth_id) {
+                            // Try Appwrite Auth login
+                            try {
+                                await account.createEmailPasswordSession(dbUser.email, password);
+                            } catch (authErr) {
+                                console.warn('Appwrite session creation failed, using database auth:', authErr.message);
+                            }
+                        }
+                        
+                        // Set user from database
+                        setUser(dbUser);
+                        fetchLinkedAccounts(dbUser.$id);
+                        return { success: true };
+                    } else {
+                        console.log('Password mismatch for user:', dbUser.email);
+                        return { success: false, error: 'Invalid password. Please check your password and try again.' };
+                    }
+                }
+            } catch (dbErr) {
+                console.log('Database auth check failed, trying Appwrite Auth:', dbErr.message);
+            }
+
+            // If database auth didn't work, try Appwrite Auth
+            await account.createEmailPasswordSession(input, password);
 
             // Get session details to ensure profile
             const session = await account.get();
@@ -179,7 +295,7 @@ export const AuthProvider = ({ children }) => {
             return { success: true };
         } catch (error) {
             console.error('Login error:', error);
-            return { success: false, error: error.message || 'An error occurred during login.' };
+            return { success: false, error: 'Invalid email/phone or password. Please check your credentials.' };
         }
     };
 
@@ -377,9 +493,10 @@ export const AuthProvider = ({ children }) => {
             console.log('Logout error (may already be logged out):', error);
         }
 
-        // Clear local storage for admin/moderator
+        // Clear local storage for admin/moderator and database user
         localStorage.removeItem('namabank_admin');
         localStorage.removeItem('namabank_moderator');
+        localStorage.removeItem('namabank_db_user');
 
         setUser(null);
         setIsAdmin(false);

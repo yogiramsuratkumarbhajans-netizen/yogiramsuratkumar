@@ -76,41 +76,93 @@ const LoginPage = () => {
 
         try {
             // Look up email from WhatsApp number using Appwrite
-            const fullNumber = countryCode + formData.whatsapp.trim().replace(/^\+?\d{1,4}/, '');
             const rawNumber = formData.whatsapp.trim();
+            const rawDigitsOnly = rawNumber.replace(/[^\d]/g, '');
+            const fullNumber = countryCode + rawDigitsOnly; // e.g., +91 + 9043057101 = +919043057101
 
-            // Try to find user with full number first, then raw number (backward compatibility)
+            console.log('Login attempt:', { countryCode, rawNumber, fullNumber, rawDigitsOnly }); // Debug log
+
+            // Try multiple formats to find the user
+            let userData = null;
+            
+            // Method 1: Try with full number (countryCode + number)
             let response = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.USERS,
                 [
                     Query.equal('whatsapp', fullNumber),
-                    Query.equal('is_active', true),
                     Query.limit(1)
                 ]
             );
+            console.log('Search with fullNumber:', fullNumber, 'Found:', response.documents.length);
 
-            // If not found, try with raw number (for users who registered before country code feature)
-            if (response.documents.length === 0) {
+            if (response.documents.length > 0) {
+                userData = response.documents[0];
+            }
+
+            // Method 2: Try with raw number as entered
+            if (!userData) {
                 response = await databases.listDocuments(
                     DATABASE_ID,
                     COLLECTIONS.USERS,
                     [
                         Query.equal('whatsapp', rawNumber),
-                        Query.equal('is_active', true),
                         Query.limit(1)
                     ]
                 );
+                console.log('Search with rawNumber:', rawNumber, 'Found:', response.documents.length);
+                if (response.documents.length > 0) {
+                    userData = response.documents[0];
+                }
             }
 
-            if (response.documents.length === 0) {
+            // Method 3: Try with just digits
+            if (!userData && rawDigitsOnly.length >= 10) {
+                response = await databases.listDocuments(
+                    DATABASE_ID,
+                    COLLECTIONS.USERS,
+                    [
+                        Query.equal('whatsapp', rawDigitsOnly),
+                        Query.limit(1)
+                    ]
+                );
+                console.log('Search with rawDigitsOnly:', rawDigitsOnly, 'Found:', response.documents.length);
+                if (response.documents.length > 0) {
+                    userData = response.documents[0];
+                }
+            }
+
+            // Method 4: Try with + prefix
+            if (!userData) {
+                const withPlus = '+' + rawDigitsOnly;
+                response = await databases.listDocuments(
+                    DATABASE_ID,
+                    COLLECTIONS.USERS,
+                    [
+                        Query.equal('whatsapp', withPlus),
+                        Query.limit(1)
+                    ]
+                );
+                console.log('Search with +prefix:', withPlus, 'Found:', response.documents.length);
+                if (response.documents.length > 0) {
+                    userData = response.documents[0];
+                }
+            }
+
+            if (!userData) {
                 setLoading(false);
                 error('No account found with this WhatsApp number. Please check the number or register first.');
                 return;
             }
 
-            const userData = response.documents[0];
-            console.log('Found user:', userData.email); // Debug log
+            console.log('Found user:', userData.email, userData.name, 'WhatsApp stored as:', userData.whatsapp); // Debug log
+
+            // Check if user is active
+            if (!userData.is_active) {
+                setLoading(false);
+                error('Your account has been disabled. Please contact admin.');
+                return;
+            }
 
             if (!userData.email) {
                 setLoading(false);
@@ -118,7 +170,7 @@ const LoginPage = () => {
                 return;
             }
 
-            // Use found email for Appwrite Auth login
+            // Use found email for login
             const result = await login(userData.email, formData.password);
 
             setLoading(false);

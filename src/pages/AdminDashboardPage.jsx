@@ -600,7 +600,7 @@ const AdminDashboardPage = () => {
         const exportData = usersToExport.map((user, index) => ({
             'S.No': index + 1,
             'Name': user.name,
-            'WhatsApp': user.whatsapp || '',
+            'WhatsApp': user.whatsapp ? "'" + String(user.whatsapp) : '',
             'Email': user.email || '',
             'City': user.city || '',
             'State': user.state || '',
@@ -616,7 +616,7 @@ const AdminDashboardPage = () => {
         ws['!cols'] = [
             { wch: 5 },   // S.No
             { wch: 25 },  // Name
-            { wch: 15 },  // WhatsApp
+            { wch: 20 },  // WhatsApp - increased width
             { wch: 25 },  // Email
             { wch: 15 },  // City
             { wch: 15 },  // State
@@ -624,6 +624,15 @@ const AdminDashboardPage = () => {
             { wch: 10 },  // Status
             { wch: 15 }   // Joined
         ];
+
+        // Force WhatsApp column to be text format to preserve full phone numbers
+        const range = XLSX.utils.decode_range(ws['!ref']);
+        for (let row = range.s.r + 1; row <= range.e.r; row++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: row, c: 2 }); // Column C (WhatsApp)
+            if (ws[cellAddress]) {
+                ws[cellAddress].t = 's'; // Force text type
+            }
+        }
 
         XLSX.utils.book_append_sheet(wb, ws, 'Users');
         XLSX.writeFile(wb, `namavruksha_users_${count === 'all' ? 'all' : count}_${new Date().toISOString().split('T')[0]}.xlsx`);
