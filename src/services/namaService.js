@@ -93,9 +93,6 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
         : new Date().toISOString().split('T')[0];
     const results = [];
 
-    // Generate a unique batch_id for this submission to group entries together
-    // This allows us to count devotees once per submission batch, not per entry
-    const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     let isFirstEntry = true; // Track if this is the first entry in the batch
 
     for (const entry of entries) {
@@ -106,8 +103,7 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
                 count: parseInt(entry.count) || 0, // Ensure count is an integer
                 source_type: sourceType,
                 entry_date: entryDate, // Use calculated entryDate (startDate or today)
-                created_at: new Date().toISOString(),
-                batch_id: batchId // Add batch_id to group entries from same submission
+                created_at: new Date().toISOString()
             };
 
             // Only add dates if they have actual values (not empty strings)
@@ -139,32 +135,9 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
             console.error('Entry data was:', entry);
 
             // enhanced error handling for missing attribute
-            if (error.code === 400 && error.message.includes('unknown_attribute: "devotee_count"')) {
+            if (error.message && error.message.includes('devotee_count')) {
                 console.error('SCHEMA ERROR: The "devotee_count" attribute is missing in Appwrite.');
                 throw new Error('Please add "devotee_count" (Integer) attribute to "nama_entries" collection in Appwrite Console.');
-            }
-            // Handle generic "Unknown attribute" error message format
-            if (error.message && error.message.includes('Unknown attribute: "devotee_count"')) {
-                console.error('SCHEMA ERROR: The "devotee_count" attribute is missing in Appwrite.');
-                throw new Error('Please add "devotee_count" (Integer) attribute to "nama_entries" collection in Appwrite Console.');
-            }
-            // Handle batch_id attribute missing
-            if (error.message && error.message.includes('batch_id')) {
-                console.warn('SCHEMA NOTE: The "batch_id" attribute is not in the schema. Retrying without batch_id.');
-                // Retry without batch_id
-                delete entryData.batch_id;
-                try {
-                    const response = await databases.createDocument(
-                        DATABASE_ID,
-                        COLLECTIONS.NAMA_ENTRIES,
-                        ID.unique(),
-                        entryData
-                    );
-                    results.push({ ...response, id: response.$id });
-                    continue; // Skip the throw, we succeeded
-                } catch (retryError) {
-                    throw retryError;
-                }
             }
 
             throw error; // Re-throw to be handled by the caller
@@ -280,6 +253,8 @@ export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
         return { entries: [], total: 0 };
     }
 
+    console.log('getUserEntriesByDateRange called with:', { userId, startDate, endDate });
+
     const response = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.NAMA_ENTRIES,
@@ -293,6 +268,8 @@ export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
     );
 
     const entries = response.documents || [];
+    console.log('Query returned entries:', entries.length, entries.map(e => ({ entry_date: e.entry_date, count: e.count, start_date: e.start_date, end_date: e.end_date })));
+    
     const total = entries.reduce((sum, e) => sum + (e.count || 0), 0);
 
     // Get account names

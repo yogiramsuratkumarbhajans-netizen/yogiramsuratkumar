@@ -53,19 +53,25 @@ const ReportsPage = () => {
     const fetchCalendarData = async (month, year) => {
         setCalendarLoading(true);
         try {
-            const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-            const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-            const result = await getUserEntriesByDateRange(user.$id, startDate, endDate);
+            const monthStartDate = new Date(year, month, 1).toISOString().split('T')[0];
+            const monthEndDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+            console.log('Fetching calendar data for:', { month: month + 1, year, monthStartDate, monthEndDate });
+            
+            const result = await getUserEntriesByDateRange(user.$id, monthStartDate, monthEndDate);
+            console.log('Entries received:', result.entries);
 
             // Group entries by date
+            // For entries with start_date/end_date ranges, we show the count on the entry_date
             const dailyData = {};
             if (result.entries) {
                 result.entries.forEach(entry => {
                     const date = entry.entry_date;
+                    console.log('Processing entry:', { date, start_date: entry.start_date, end_date: entry.end_date, count: entry.count });
                     if (!dailyData[date]) dailyData[date] = 0;
                     dailyData[date] += entry.count || 0;
                 });
             }
+            console.log('Calendar data:', dailyData);
             setCalendarData(dailyData);
         } catch (err) {
             console.error('Error fetching calendar data:', err);
