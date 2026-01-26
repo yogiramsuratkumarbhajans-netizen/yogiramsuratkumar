@@ -179,10 +179,32 @@ const RegisterPage = () => {
             photoData = photoPreview; // Base64 string
         }
 
+        // Properly format whatsapp number - only keep digits from user input
+        const digitsOnly = formData.whatsapp.replace(/[^\d]/g, '');
+        // Get country code digits for checking duplicates
+        const countryCodeDigits = countryCode.replace(/[^\d]/g, '');
+        // Check if user already included country code in their input
+        let localNumber = digitsOnly;
+        if (digitsOnly.startsWith(countryCodeDigits) && digitsOnly.length > 10) {
+            // User entered country code, remove it to avoid duplication
+            localNumber = digitsOnly.substring(countryCodeDigits.length);
+        }
+        // Final formatted number: +countrycode + local number
+        const formattedWhatsapp = countryCode + localNumber;
+        
+        console.log('Registration phone formatting:', {
+            input: formData.whatsapp,
+            digitsOnly,
+            countryCode,
+            countryCodeDigits,
+            localNumber,
+            formattedWhatsapp
+        });
+
         const result = await register(
             {
                 name: formData.name.trim(),
-                whatsapp: (countryCode + formData.whatsapp.replace(/^\+?\d{1,4}/, '')).trim(),
+                whatsapp: formattedWhatsapp,
                 email: formData.email.trim(),
                 password: formData.password,
                 city: formData.city.trim(),

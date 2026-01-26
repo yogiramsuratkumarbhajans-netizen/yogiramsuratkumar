@@ -214,25 +214,41 @@ export const AuthProvider = ({ children }) => {
                 if (dbUsers.documents.length > 0) {
                     dbUser = dbUsers.documents[0];
                 } else {
-                    // Try to find by whatsapp number
-                    const phoneDigits = input.replace(/[^\d+]/g, '');
+                    // Try to find by whatsapp number - comprehensive search
+                    const phoneDigits = input.replace(/[^\d]/g, '');
+                    const phoneWithPlus = input.replace(/[^\d+]/g, '');
+                    
                     if (phoneDigits.length >= 10) {
-                        dbUsers = await databases.listDocuments(
-                            DATABASE_ID,
-                            COLLECTIONS.USERS,
-                            [Query.equal('whatsapp', phoneDigits), Query.limit(1)]
-                        );
-                        if (dbUsers.documents.length > 0) {
-                            dbUser = dbUsers.documents[0];
-                        } else {
-                            // Try with + prefix
-                            dbUsers = await databases.listDocuments(
-                                DATABASE_ID,
-                                COLLECTIONS.USERS,
-                                [Query.equal('whatsapp', '+' + phoneDigits.replace(/^\+/, '')), Query.limit(1)]
-                            );
-                            if (dbUsers.documents.length > 0) {
-                                dbUser = dbUsers.documents[0];
+                        // Generate multiple search formats
+                        const last10Digits = phoneDigits.slice(-10);
+                        const searchFormats = [
+                            phoneDigits,                    // All digits
+                            '+' + phoneDigits,              // With + prefix
+                            phoneWithPlus,                  // Original with + if present
+                            last10Digits,                   // Last 10 digits only
+                            '+91' + last10Digits,           // Common India format
+                            '91' + last10Digits,            // Without +
+                            '+' + last10Digits,             // Just + and local
+                        ];
+                        
+                        // Remove duplicates
+                        const uniqueFormats = [...new Set(searchFormats.filter(f => f && f.length >= 10))];
+                        console.log('AuthContext login - searching phone formats:', uniqueFormats);
+                        
+                        for (const searchFormat of uniqueFormats) {
+                            if (dbUser) break;
+                            try {
+                                dbUsers = await databases.listDocuments(
+                                    DATABASE_ID,
+                                    COLLECTIONS.USERS,
+                                    [Query.equal('whatsapp', searchFormat), Query.limit(1)]
+                                );
+                                if (dbUsers.documents.length > 0) {
+                                    dbUser = dbUsers.documents[0];
+                                    console.log('Found user with format:', searchFormat);
+                                }
+                            } catch (searchErr) {
+                                console.warn('Search error:', searchErr.message);
                             }
                         }
                     }
@@ -390,6 +406,7 @@ export const AuthProvider = ({ children }) => {
                 auth_id: authUser.$id,
                 name: userData.name,
                 email: userData.email,
+                password: userData.password, // Store password for database-based authentication
                 is_active: true,
                 created_at: new Date().toISOString()
             };

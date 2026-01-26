@@ -19,6 +19,7 @@ const LoginPage = () => {
     const [loading, setLoading] = useState(false);
     const [errors, setErrors] = useState({});
     const [countryCode, setCountryCode] = useState('+91'); // Default to India
+    const [loginMethod, setLoginMethod] = useState('whatsapp'); // 'whatsapp' or 'email'
 
     // Common country codes (same as RegisterPage)
     const COUNTRY_CODES = [
@@ -57,8 +58,17 @@ const LoginPage = () => {
     const validate = () => {
         const newErrors = {};
 
-        const whatsappValidation = validateWhatsApp(formData.whatsapp);
-        if (!whatsappValidation.valid) newErrors.whatsapp = whatsappValidation.error;
+        if (loginMethod === 'whatsapp') {
+            const whatsappValidation = validateWhatsApp(formData.whatsapp);
+            if (!whatsappValidation.valid) newErrors.whatsapp = whatsappValidation.error;
+        } else {
+            // Email validation
+            if (!formData.whatsapp.trim()) {
+                newErrors.whatsapp = 'Email is required';
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.whatsapp.trim())) {
+                newErrors.whatsapp = 'Please enter a valid email address';
+            }
+        }
 
         // Password validation can be less strict for login, just check if present
         if (!formData.password) newErrors.password = 'Password is required';
@@ -75,77 +85,220 @@ const LoginPage = () => {
         setLoading(true);
 
         try {
-            // Look up email from WhatsApp number using Appwrite
-            const rawNumber = formData.whatsapp.trim();
-            const rawDigitsOnly = rawNumber.replace(/[^\d]/g, '');
-            const fullNumber = countryCode + rawDigitsOnly; // e.g., +91 + 9043057101 = +919043057101
-
-            console.log('Login attempt:', { countryCode, rawNumber, fullNumber, rawDigitsOnly }); // Debug log
-
-            // Try multiple formats to find the user
             let userData = null;
             
-            // Method 1: Try with full number (countryCode + number)
-            let response = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTIONS.USERS,
-                [
-                    Query.equal('whatsapp', fullNumber),
-                    Query.limit(1)
-                ]
-            );
-            console.log('Search with fullNumber:', fullNumber, 'Found:', response.documents.length);
+            // If login method is email, search directly by email
+            if (loginMethod === 'email') {
+                const emailInput = formData.whatsapp.trim().toLowerCase();
+                console.log('Login with email:', emailInput);
+                
+                try {
+                    const response = await databases.listDocuments(
+                        DATABASE_ID,
+                        COLLECTIONS.USERS,
+                        [
+                            Query.equal('email', emailInput),
+                            Query.limit(1)
+                        ]
+                    );
+                    
+                    if (response.documents.length > 0) {
+                        userData = response.documents[0];
+                        console.log('Found user by email:', userData.email);
+                    }
+                } catch (emailErr) {
+                    console.error('Email search error:', emailErr);
+                }
+                
+                if (!userData) {
+                    setLoading(false);
+                    error('No account found with this email address.');
+                    return;
+                }
+            } else {
+                // WhatsApp login - existing logic
+            // Look up email from WhatsApp number using Appwrite
+            const rawNumber = formData.whatsapp.trim();
+            // Remove all non-digit characters except +
+            const cleanedNumber = rawNumber.replace(/[^\d+]/g, '');
+            // Get only digits (no + sign)
+            const rawDigitsOnly = rawNumber.replace(/[^\d]/g, '');
+            
+            // Get country code digits without +
+            const countryCodeDigits = countryCode.replace(/[^\d]/g, '');
+            
+            // Build full number with country code
+            const fullNumber = countryCode + rawDigitsOnly; // e.g., +91 + 9043057101 = +919043057101
+            const fullNumberNoPlus = countryCodeDigits + rawDigitsOnly; // e.g., 919043057101
+            
+            // Also try if user already included country code in their input
+            const inputHasCountryCode = rawDigitsOnly.startsWith(countryCodeDigits);
+            const numberWithoutInputCountryCode = inputHasCountryCode ? rawDigitsOnly.substring(countryCodeDigits.length) : rawDigitsOnly;
 
-            if (response.documents.length > 0) {
-                userData = response.documents[0];
-            }
+            console.log('Login attempt:', { 
+                countryCode, 
+                rawNumber, 
+                fullNumber, 
+                fullNumberNoPlus,
+                rawDigitsOnly,
+                inputHasCountryCode,
+                numberWithoutInputCountryCode
+            });
 
-            // Method 2: Try with raw number as entered
-            if (!userData) {
-                response = await databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.USERS,
-                    [
-                        Query.equal('whatsapp', rawNumber),
-                        Query.limit(1)
-                    ]
-                );
-                console.log('Search with rawNumber:', rawNumber, 'Found:', response.documents.length);
-                if (response.documents.length > 0) {
-                    userData = response.documents[0];
+            // Generate all possible number formats to search
+            const searchFormats = [
+                fullNumber,                                    // +919043057101
+                fullNumberNoPlus,                              // 919043057101
+                rawDigitsOnly,                                 // 9043057101 (or full if user entered it)
+                '+' + rawDigitsOnly,                           // +9043057101
+                rawNumber,                                     // as entered
+                cleanedNumber,                                 // cleaned version
+                countryCode + numberWithoutInputCountryCode,   // +91 + number without duplicate country code
+                countryCodeDigits + numberWithoutInputCountryCode, // 91 + number without duplicate country code
+                numberWithoutInputCountryCode,                 // just the local number
+                '+' + numberWithoutInputCountryCode,           // +local number
+            ];
+
+            // Remove duplicates
+            const uniqueFormats = [...new Set(searchFormats.filter(f => f && f.length >= 10))];
+            console.log('Searching with formats:', uniqueFormats);
+            
+            for (const searchFormat of uniqueFormats) {
+                if (userData) break;
+                
+                try {
+                    const response = await databases.listDocuments(
+                        DATABASE_ID,
+                        COLLECTIONS.USERS,
+                        [
+                            Query.equal('whatsapp', searchFormat),
+                            Query.limit(1)
+                        ]
+                    );
+                    console.log('Search with:', searchFormat, 'Found:', response.documents.length);
+                    
+                    if (response.documents.length > 0) {
+                        userData = response.documents[0];
+                        console.log('Found user with format:', searchFormat, 'Stored whatsapp:', userData.whatsapp);
+                    }
+                } catch (searchErr) {
+                    console.warn('Search error for format:', searchFormat, searchErr.message);
                 }
             }
 
-            // Method 3: Try with just digits
+            // If still not found, try a broader search approach - get last 10 digits and search
             if (!userData && rawDigitsOnly.length >= 10) {
-                response = await databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.USERS,
-                    [
-                        Query.equal('whatsapp', rawDigitsOnly),
-                        Query.limit(1)
-                    ]
-                );
-                console.log('Search with rawDigitsOnly:', rawDigitsOnly, 'Found:', response.documents.length);
-                if (response.documents.length > 0) {
-                    userData = response.documents[0];
+                const last10Digits = rawDigitsOnly.slice(-10);
+                console.log('Trying broader search with last 10 digits:', last10Digits);
+                
+                // Try searching with common patterns using last 10 digits
+                const broadSearchFormats = [
+                    last10Digits,
+                    '+91' + last10Digits,
+                    '91' + last10Digits,
+                    '+' + last10Digits,
+                ];
+                
+                for (const searchFormat of broadSearchFormats) {
+                    if (userData) break;
+                    
+                    try {
+                        const response = await databases.listDocuments(
+                            DATABASE_ID,
+                            COLLECTIONS.USERS,
+                            [
+                                Query.equal('whatsapp', searchFormat),
+                                Query.limit(1)
+                            ]
+                        );
+                        console.log('Broad search with:', searchFormat, 'Found:', response.documents.length);
+                        
+                        if (response.documents.length > 0) {
+                            userData = response.documents[0];
+                            console.log('Found user with broad format:', searchFormat, 'Stored whatsapp:', userData.whatsapp);
+                        }
+                    } catch (searchErr) {
+                        console.warn('Broad search error:', searchErr.message);
+                    }
                 }
             }
 
-            // Method 4: Try with + prefix
-            if (!userData) {
-                const withPlus = '+' + rawDigitsOnly;
-                response = await databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.USERS,
-                    [
-                        Query.equal('whatsapp', withPlus),
-                        Query.limit(1)
-                    ]
-                );
-                console.log('Search with +prefix:', withPlus, 'Found:', response.documents.length);
-                if (response.documents.length > 0) {
-                    userData = response.documents[0];
+            // If still not found, try searching with partial matches for corrupted data
+            // Some old records have truncated phone numbers due to a bug
+            if (!userData && rawDigitsOnly.length >= 6) {
+                console.log('Trying partial match search for corrupted phone numbers...');
+                
+                // Get the last 6-8 digits which might be in the corrupted record
+                const suffixesToTry = [
+                    rawDigitsOnly.slice(-6),  // Last 6 digits
+                    rawDigitsOnly.slice(-7),  // Last 7 digits
+                    rawDigitsOnly.slice(-8),  // Last 8 digits
+                ];
+                
+                // Also try with country code prefixes
+                const partialFormats = [];
+                for (const suffix of suffixesToTry) {
+                    partialFormats.push('+91' + suffix);
+                    partialFormats.push('+1' + suffix);
+                    partialFormats.push('+44' + suffix);
+                    partialFormats.push(suffix);
+                }
+                
+                const uniquePartialFormats = [...new Set(partialFormats)];
+                console.log('Trying partial formats:', uniquePartialFormats);
+                
+                for (const searchFormat of uniquePartialFormats) {
+                    if (userData) break;
+                    
+                    try {
+                        const response = await databases.listDocuments(
+                            DATABASE_ID,
+                            COLLECTIONS.USERS,
+                            [
+                                Query.equal('whatsapp', searchFormat),
+                                Query.limit(1)
+                            ]
+                        );
+                        
+                        if (response.documents.length > 0) {
+                            userData = response.documents[0];
+                            console.log('Found user with partial format:', searchFormat, 'Stored whatsapp:', userData.whatsapp);
+                        }
+                    } catch (searchErr) {
+                        // Continue to next format
+                    }
+                }
+            }
+            
+            // Last resort: Try to find by email pattern if user's phone contains enough digits
+            if (!userData && rawDigitsOnly.length >= 10) {
+                console.log('Trying email-based search as last resort...');
+                try {
+                    // Try common email patterns with the phone number
+                    const emailPatterns = [
+                        rawDigitsOnly + '@',
+                        rawDigitsOnly.slice(-10) + '@',
+                    ];
+                    
+                    for (const emailPattern of emailPatterns) {
+                        if (userData) break;
+                        
+                        const response = await databases.listDocuments(
+                            DATABASE_ID,
+                            COLLECTIONS.USERS,
+                            [
+                                Query.startsWith('email', emailPattern),
+                                Query.limit(1)
+                            ]
+                        );
+                        
+                        if (response.documents.length > 0) {
+                            userData = response.documents[0];
+                            console.log('Found user by email pattern:', emailPattern);
+                        }
+                    }
+                } catch (emailErr) {
+                    console.warn('Email pattern search failed:', emailErr.message);
                 }
             }
 
@@ -154,8 +307,9 @@ const LoginPage = () => {
                 error('No account found with this WhatsApp number. Please check the number or register first.');
                 return;
             }
+            } // End of WhatsApp login else block
 
-            console.log('Found user:', userData.email, userData.name, 'WhatsApp stored as:', userData.whatsapp); // Debug log
+            console.log('Found user:', userData.email, userData.name, 'WhatsApp stored as:', userData?.whatsapp); // Debug log
 
             // Check if user is active
             if (!userData.is_active) {
@@ -212,31 +366,79 @@ const LoginPage = () => {
                     </div>
 
                     <form onSubmit={handleSubmit} className="login-form" autoComplete="off">
-                        {/* WhatsApp Number */}
+                        {/* Login Method Toggle */}
                         <div className="form-group">
-                            <label className="form-label">WhatsApp Number</label>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <select
-                                    value={countryCode}
-                                    onChange={(e) => setCountryCode(e.target.value)}
-                                    className="form-input"
-                                    style={{ width: '100px', flexShrink: 0 }}
+                            <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => { setLoginMethod('whatsapp'); setFormData(prev => ({ ...prev, whatsapp: '' })); setErrors({}); }}
+                                    style={{
+                                        flex: 1,
+                                        padding: '10px',
+                                        border: loginMethod === 'whatsapp' ? '2px solid var(--primary-color)' : '1px solid #ddd',
+                                        borderRadius: '8px',
+                                        background: loginMethod === 'whatsapp' ? 'var(--primary-light)' : 'white',
+                                        cursor: 'pointer',
+                                        fontWeight: loginMethod === 'whatsapp' ? 'bold' : 'normal'
+                                    }}
                                 >
-                                    {COUNTRY_CODES.map(cc => (
-                                        <option key={cc.code} value={cc.code}>{cc.label}</option>
-                                    ))}
-                                </select>
+                                    📱 WhatsApp
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { setLoginMethod('email'); setFormData(prev => ({ ...prev, whatsapp: '' })); setErrors({}); }}
+                                    style={{
+                                        flex: 1,
+                                        padding: '10px',
+                                        border: loginMethod === 'email' ? '2px solid var(--primary-color)' : '1px solid #ddd',
+                                        borderRadius: '8px',
+                                        background: loginMethod === 'email' ? 'var(--primary-light)' : 'white',
+                                        cursor: 'pointer',
+                                        fontWeight: loginMethod === 'email' ? 'bold' : 'normal'
+                                    }}
+                                >
+                                    ✉️ Email
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* WhatsApp Number or Email */}
+                        <div className="form-group">
+                            <label className="form-label">{loginMethod === 'whatsapp' ? 'WhatsApp Number' : 'Email Address'}</label>
+                            {loginMethod === 'whatsapp' ? (
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    <select
+                                        value={countryCode}
+                                        onChange={(e) => setCountryCode(e.target.value)}
+                                        className="form-input"
+                                        style={{ width: '120px', flexShrink: 0 }}
+                                    >
+                                        {COUNTRY_CODES.map(cc => (
+                                            <option key={cc.code} value={cc.code}>{cc.label}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="tel"
+                                        name="whatsapp"
+                                        value={formData.whatsapp}
+                                        onChange={handleChange}
+                                        className={`form-input ${errors.whatsapp ? 'error' : ''}`}
+                                        placeholder="9876543210"
+                                        autoComplete="tel"
+                                        style={{ flex: 1 }}
+                                    />
+                                </div>
+                            ) : (
                                 <input
-                                    type="tel"
+                                    type="email"
                                     name="whatsapp"
                                     value={formData.whatsapp}
                                     onChange={handleChange}
                                     className={`form-input ${errors.whatsapp ? 'error' : ''}`}
-                                    placeholder="9876543210"
-                                    autoComplete="tel"
-                                    style={{ flex: 1 }}
+                                    placeholder="your.email@example.com"
+                                    autoComplete="email"
                                 />
-                            </div>
+                            )}
                             {errors.whatsapp && <span className="form-error">{errors.whatsapp}</span>}
                         </div>
 
