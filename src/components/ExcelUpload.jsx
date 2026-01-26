@@ -60,7 +60,7 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                         if (['pass', 'pwd'].includes(normalizedKey)) {
                             normalizedKey = 'password';
                         }
-                        if (['mail', 'e-mail', 'email_id'].includes(normalizedKey)) {
+                        if (['email', 'mail', 'e-mail', 'email_id', 'e_mail', 'emailaddress', 'email_address'].includes(normalizedKey)) {
                             normalizedKey = 'email';
                         }
                         if (['countrycode', 'country_code', 'cc', 'dial_code'].includes(normalizedKey)) {
@@ -89,8 +89,14 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                         normalized[normalizedKey] = value;
                     });
 
-                    // Auto-generate email if missing but whatsapp exists
-                    if (!normalized.email && normalized.whatsapp) {
+                    // Auto-generate email ONLY if truly missing/empty AND whatsapp exists
+                    // Check for valid email - must contain @ and have content before and after
+                    const hasValidEmail = normalized.email && 
+                        normalized.email.includes('@') && 
+                        normalized.email.indexOf('@') > 0 && 
+                        normalized.email.indexOf('@') < normalized.email.length - 1;
+                    
+                    if (!hasValidEmail && normalized.whatsapp) {
                         // Remove special chars from whatsapp for cleaner email
                         const cleanPhone = normalized.whatsapp.replace(/[^0-9]/g, '');
                         normalized.email = `${cleanPhone}@namavruksha.org`;

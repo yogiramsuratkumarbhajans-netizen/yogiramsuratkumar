@@ -266,8 +266,9 @@ export const AuthProvider = ({ children }) => {
                     const storedPassword = String(dbUser.password || '').trim();
                     const inputPassword = String(password).trim();
                     
-                    console.log('Comparing passwords:', { stored: storedPassword, input: inputPassword, match: storedPassword === inputPassword });
+                    console.log('Comparing passwords:', { stored: storedPassword ? '[SET]' : '[NULL/EMPTY]', inputLength: inputPassword.length });
                     
+                    // If password is stored in database, compare directly
                     if (storedPassword && storedPassword === inputPassword) {
                         console.log('Database authentication successful for:', dbUser.email);
                         
@@ -292,7 +293,40 @@ export const AuthProvider = ({ children }) => {
                         setUser(dbUser);
                         fetchLinkedAccounts(dbUser.$id);
                         return { success: true };
-                    } else {
+                    } else if (!storedPassword && dbUser.auth_id) {
+                        // Password not in database but user has Appwrite Auth - try Appwrite Auth
+                        console.log('No password in database, trying Appwrite Auth for:', dbUser.email);
+                        try {
+                            await account.createEmailPasswordSession(dbUser.email, inputPassword);
+                            
+                            // Success! Update database with password for future logins
+                            try {
+                                await databases.updateDocument(
+                                    DATABASE_ID,
+                                    COLLECTIONS.USERS,
+                                    dbUser.$id,
+                                    { password: inputPassword }
+                                );
+                                console.log('Updated password in database for:', dbUser.email);
+                            } catch (updateErr) {
+                                console.warn('Could not update password in database:', updateErr.message);
+                            }
+                            
+                            // Store user in localStorage
+                            localStorage.setItem('namabank_db_user', JSON.stringify({
+                                $id: dbUser.$id,
+                                email: dbUser.email,
+                                name: dbUser.name
+                            }));
+                            
+                            setUser(dbUser);
+                            fetchLinkedAccounts(dbUser.$id);
+                            return { success: true };
+                        } catch (authErr) {
+                            console.log('Appwrite Auth also failed:', authErr.message);
+                            return { success: false, error: 'Invalid password. Please check your password and try again.' };
+                        }
+                    } else if (storedPassword && storedPassword !== inputPassword) {
                         console.log('Password mismatch for user:', dbUser.email);
                         return { success: false, error: 'Invalid password. Please check your password and try again.' };
                     }
