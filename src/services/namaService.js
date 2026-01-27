@@ -586,12 +586,21 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
 
                 // Use provided email if valid, otherwise generate from phone number
                 const emailPhone = normalizedWhatsApp.replace(/[^0-9]/g, '');
+                
+                // Debug: Log the incoming email value
+                console.log('Email check for user:', userData.name, '| Provided email:', userData.email, '| Type:', typeof userData.email);
+                
                 // Check if userData.email is a valid email (contains @ with content before and after)
                 const hasValidEmail = userData.email && 
-                    userData.email.includes('@') && 
-                    userData.email.indexOf('@') > 0 && 
-                    userData.email.indexOf('@') < userData.email.length - 1;
-                const email = hasValidEmail ? userData.email.trim() : `${emailPhone}@namavruksha.org`;
+                    String(userData.email).trim() !== '' &&
+                    String(userData.email).includes('@') && 
+                    String(userData.email).indexOf('@') > 0 && 
+                    String(userData.email).indexOf('@') < String(userData.email).length - 1;
+                
+                const email = hasValidEmail ? String(userData.email).trim() : `${emailPhone}@namavruksha.org`;
+                
+                console.log('Email decision:', hasValidEmail ? 'Using provided email' : 'Generated from phone', '| Final email:', email);
+                
                 const passwordStr = String(userData.password).trim();
 
                 console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp, email }); // Debug log

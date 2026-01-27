@@ -178,9 +178,10 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
     const handleUpload = () => {
         if (previewData.length === 0 || errors.length > 0) return;
 
-        // Prepare data for upload
+        // Prepare data for upload - include email from Excel data
         const users = previewData.map(row => ({
             name: row.name,
+            email: row.email || null,  // Include the email from Excel file
             whatsapp: row.whatsapp,
             password: row.password,
             city: row.city || null,
@@ -189,6 +190,7 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
             accountIds: selectedDefaultAccounts
         }));
 
+        console.log('Uploading users with email data:', users.map(u => ({ name: u.name, email: u.email }))); // Debug log
         onUpload(users);
     };
 
@@ -345,9 +347,9 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                                 <thead>
                                     <tr>
                                         <th>Name</th>
+                                        <th>Email</th>
                                         <th>WhatsApp</th>
                                         <th>City</th>
-                                        <th>State</th>
                                         <th>Country</th>
                                     </tr>
                                 </thead>
@@ -355,9 +357,9 @@ const ExcelUpload = ({ onUpload, onClose, accounts }) => {
                                     {previewData.slice(0, 5).map((row, i) => (
                                         <tr key={i}>
                                             <td>{row.name}</td>
+                                            <td>{row.email || '-'}</td>
                                             <td>{row.whatsapp}</td>
                                             <td>{row.city || '-'}</td>
-                                            <td>{row.state || '-'}</td>
                                             <td>{row.country || '-'}</td>
                                         </tr>
                                     ))}
