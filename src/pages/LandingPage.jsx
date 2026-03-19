@@ -17,67 +17,50 @@ const LandingPage = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-            let userCount = 0;
-            let totalNama = 0;
-            let totalDevoteesSum = 0;
-            let accountCount = 0;
-            let fallbackUserCount = 0;
 
-            // 1. Fetch Active Accounts Count (for Sankalpas)
-            try {
-                const accountsResponse = await databases.listDocuments(
+            const [accountsResult, namaResult, usersResult] = await Promise.allSettled([
+
+                // 1. Active Accounts Count
+                databases.listDocuments(
                     DATABASE_ID,
                     COLLECTIONS.NAMA_ACCOUNTS,
                     [Query.equal('is_active', true), Query.limit(100)]
-                );
-                accountCount = accountsResponse.total || accountsResponse.documents.length;
-            } catch (err) {
-                console.error('Error fetching accounts count:', err);
-            }
+                ),
 
-            // 2. Fetch Nama Entries (Core Stats)
-            try {
-                const namaResponse = await databases.listDocuments(
+                // 2. Nama Entries — fetch all with realistic limit, no Query.sum
+                databases.listDocuments(
                     DATABASE_ID,
                     COLLECTIONS.NAMA_ENTRIES,
-                    [Query.limit(10000)]
-                );
+                    [Query.limit(2000)]
+                ),
 
-                totalNama = namaResponse.documents?.reduce((sum, entry) => sum + (entry.count || 0), 0) || 0;
-
-                // Sum devotees from entries
-                totalDevoteesSum = namaResponse.documents?.reduce((sum, entry) => {
-                    const devotees = parseInt(entry.devotee_count);
-                    return sum + (isNaN(devotees) || devotees === 0 ? 1 : devotees);
-                }, 0) || 0;
-
-                // Calculate fallback user count from unique user_ids in entries
-                const uniqueUserIds = new Set(namaResponse.documents?.map(entry => entry.user_id).filter(Boolean));
-                fallbackUserCount = uniqueUserIds.size;
-
-            } catch (err) {
-                console.error('Error fetching nama stats:', err);
-            }
-
-            // 3. Fetch Total Users (Optional/Permission Sensitive)
-            try {
-                const usersResponse = await databases.listDocuments(
+                // 3. User Count — limit(1) just to read .total
+                databases.listDocuments(
                     DATABASE_ID,
                     COLLECTIONS.USERS,
-                    [Query.limit(1)] // We only need the total count
-                );
-                userCount = usersResponse.total || 0;
-            } catch (err) {
-                console.warn('Error fetching user count (likely permission issue), using fallback:', err);
-                // Fallback: Use unique user IDs from nama entries
-                userCount = fallbackUserCount;
+                    [Query.limit(1)]
+                ),
+            ]);
+
+            const accountCount = accountsResult.status === 'fulfilled'
+                ? (accountsResult.value.total || accountsResult.value.documents.length)
+                : 0;
+
+            let totalNama = 0;
+            let totalDevoteesSum = 0;
+
+            if (namaResult.status === 'fulfilled') {
+                const docs = namaResult.value.documents || [];
+                totalNama = docs.reduce((sum, e) => sum + (e.count || 0), 0);
+                totalDevoteesSum = docs.reduce((sum, e) => {
+                    const d = parseInt(e.devotee_count);
+                    return sum + (isNaN(d) || d === 0 ? 1 : d);
+                }, 0);
             }
 
-            // If userCount is still 0 (e.g. fetch succeeded but returned 0, or both failed), 
-            // but we have fallback data, prefer the larger number to avoid showing "0 Users" artificially.
-            if (userCount === 0 && fallbackUserCount > 0) {
-                userCount = fallbackUserCount;
-            }
+            const userCount = usersResult.status === 'fulfilled'
+                ? (usersResult.value.total || 0)
+                : 0;
 
             setLiveStats({
                 totalRegisteredUsers: userCount,
@@ -231,8 +214,6 @@ const LandingPage = () => {
                         🌳 <strong>Namavruksha</strong>
                     </div>
                     <p className="footer-tagline">Rooted in Nama. Growing in Faith. Bearing Fruits Beyond Life.</p>
-
-
 
                     <div className="admin-links">
                         <Link to="/moderator/login">Moderator</Link>

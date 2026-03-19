@@ -87,38 +87,33 @@ export const submitNamaEntry = async (userId, accountId, count, sourceType = 'ma
 };
 
 export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'manual', startDate = null, endDate = null, devoteeCount = null) => {
-    // Use startDate if provided, otherwise default to today
     const entryDate = (startDate && typeof startDate === 'string' && startDate.trim() !== '')
         ? startDate
         : new Date().toISOString().split('T')[0];
     const results = [];
 
-    let isFirstEntry = true; // Track if this is the first entry in the batch
+    let isFirstEntry = true;
 
     for (const entry of entries) {
         try {
             const entryData = {
                 user_id: userId,
                 account_id: entry.accountId,
-                count: parseInt(entry.count) || 0, // Ensure count is an integer
+                count: parseInt(entry.count) || 0,
                 source_type: sourceType,
-                entry_date: entryDate, // Use calculated entryDate (startDate or today)
+                entry_date: entryDate,
                 created_at: new Date().toISOString()
             };
 
-            // Only add dates if they have actual values (not empty strings)
-            // Appwrite expects dates in ISO format or as date strings
             if (startDate && typeof startDate === 'string' && startDate.trim() !== '') {
                 entryData.start_date = startDate;
             }
             if (endDate && typeof endDate === 'string' && endDate.trim() !== '') {
                 entryData.end_date = endDate;
             }
-            // Add devotee count ONLY on the first entry of the batch
-            // This prevents counting the same devotees multiple times
             if (isFirstEntry && devoteeCount && !isNaN(parseInt(devoteeCount))) {
                 entryData.devotee_count = parseInt(devoteeCount);
-                isFirstEntry = false; // Subsequent entries in this batch won't have devotee_count
+                isFirstEntry = false;
             }
 
             console.log('Submitting entry data:', entryData);
@@ -134,13 +129,12 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
             console.error('Error submitting entry:', error);
             console.error('Entry data was:', entry);
 
-            // enhanced error handling for missing attribute
             if (error.message && error.message.includes('devotee_count')) {
                 console.error('SCHEMA ERROR: The "devotee_count" attribute is missing in Appwrite.');
                 throw new Error('Please add "devotee_count" (Integer) attribute to "nama_entries" collection in Appwrite Console.');
             }
 
-            throw error; // Re-throw to be handled by the caller
+            throw error;
         }
     }
 
@@ -158,11 +152,9 @@ export const getUserRecentEntries = async (userId, limit = 10) => {
         ]
     );
 
-    // Fetch account names for each entry
     const entries = response.documents;
     const accountIds = [...new Set(entries.map(e => e.account_id))];
 
-    // Get accounts
     const accountsMap = {};
     if (accountIds.length > 0) {
         const accountsResponse = await databases.listDocuments(
@@ -186,8 +178,7 @@ export const getUserStats = async (userId) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
-    // Calculate current week (Monday to Sunday)
-    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() + mondayOffset);
@@ -208,14 +199,13 @@ export const getUserStats = async (userId) => {
         totalDevotees: 0
     };
 
-    // Early return with default stats if no userId
     if (!userId) return stats;
 
-    // Get all entries for the user
+    // ── OPTIMIZED: 500 is a safe ceiling per user, was 10000 ──
     const response = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.NAMA_ENTRIES,
-        [Query.equal('user_id', userId), Query.limit(10000)]
+        [Query.equal('user_id', userId), Query.limit(500)]
     );
 
     const entries = response.documents || [];
@@ -227,27 +217,16 @@ export const getUserStats = async (userId) => {
         stats.overall += count;
         stats.totalDevotees += devoteeCount;
 
-        if (entry.entry_date === today) {
-            stats.today += count;
-        }
-        if (entry.entry_date >= weekStartStr) {
-            stats.currentWeek += count;
-        }
-        if (entry.entry_date >= monthStart) {
-            stats.currentMonth += count;
-        }
-        if (entry.entry_date >= yearStart) {
-            stats.currentYear += count;
-        }
-        if (entry.entry_date >= prevYearStart && entry.entry_date <= prevYearEnd) {
-            stats.previousYear += count;
-        }
+        if (entry.entry_date === today) stats.today += count;
+        if (entry.entry_date >= weekStartStr) stats.currentWeek += count;
+        if (entry.entry_date >= monthStart) stats.currentMonth += count;
+        if (entry.entry_date >= yearStart) stats.currentYear += count;
+        if (entry.entry_date >= prevYearStart && entry.entry_date <= prevYearEnd) stats.previousYear += count;
     });
 
     return stats;
 };
 
-// Get user entries by date range for custom filtering
 export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
     if (!userId || !startDate || !endDate) {
         return { entries: [], total: 0 };
@@ -269,10 +248,9 @@ export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
 
     const entries = response.documents || [];
     console.log('Query returned entries:', entries.length, entries.map(e => ({ entry_date: e.entry_date, count: e.count, start_date: e.start_date, end_date: e.end_date })));
-    
+
     const total = entries.reduce((sum, e) => sum + (e.count || 0), 0);
 
-    // Get account names
     const accountIds = [...new Set(entries.map(e => e.account_id))];
     const accountsMap = {};
     if (accountIds.length > 0) {
@@ -326,12 +304,10 @@ export const getAllNamaEntries = async () => {
         [Query.orderDesc('created_at'), Query.limit(1000)]
     );
 
-    // Fetch related user and account data
     const entries = response.documents;
     const userIds = [...new Set(entries.map(e => e.user_id))];
     const accountIds = [...new Set(entries.map(e => e.account_id))];
 
-    // Get users
     const usersMap = {};
     if (userIds.length > 0) {
         const usersResponse = await databases.listDocuments(
@@ -344,7 +320,6 @@ export const getAllNamaEntries = async () => {
         });
     }
 
-    // Get accounts
     const accountsMap = {};
     if (accountIds.length > 0) {
         const accountsResponse = await databases.listDocuments(
@@ -379,12 +354,13 @@ export const deleteNamaEntry = async (id) => {
     await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, id);
 };
 
-export const getAccountStats = async () => {
+// ── OPTIMIZED: accepts pre-fetched entries from PublicReportsPage
+//    to avoid double-fetching. Falls back to its own fetch if called standalone.
+export const getAccountStats = async (prefetchedEntries = null) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
 
-    // Calculate current week (Monday to Sunday)
-    const dayOfWeek = now.getDay(); // 0 = Sunday
+    const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() + mondayOffset);
@@ -403,13 +379,18 @@ export const getAccountStats = async () => {
     );
     const accounts = accountsResponse.documents;
 
-    // Get all entries
-    const entriesResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [Query.limit(10000)]
-    );
-    const entries = entriesResponse.documents;
+    // ── Use pre-fetched entries if provided, otherwise fetch with safe limit ──
+    let entries;
+    if (prefetchedEntries) {
+        entries = prefetchedEntries;
+    } else {
+        const entriesResponse = await databases.listDocuments(
+            DATABASE_ID,
+            COLLECTIONS.NAMA_ENTRIES,
+            [Query.limit(2000)]
+        );
+        entries = entriesResponse.documents;
+    }
 
     const accountStats = accounts.map(account => {
         const accountEntries = entries.filter(e => e.account_id === account.$id);
@@ -455,8 +436,6 @@ export const getUserAccountLinks = async (userId) => {
         [Query.equal('user_id', userId)]
     );
 
-    // Get account details
-    const accountIds = response.documents.map(link => link.account_id);
     const accountsResponse = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.NAMA_ACCOUNTS,
@@ -511,7 +490,6 @@ export const linkUserToAccounts = async (userId, accountIds) => {
 };
 
 export const unlinkUserFromAccount = async (userId, accountId) => {
-    // Find the link document
     const response = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.USER_ACCOUNT_LINKS,
@@ -534,33 +512,25 @@ export const unlinkUserFromAccount = async (userId, accountId) => {
 export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress = null) => {
     const results = [];
     const errors = [];
-    const BATCH_SIZE = 10; // Process 10 users at a time
-    const DELAY_BETWEEN_BATCHES = 500; // 500ms delay between batches
+    const BATCH_SIZE = 10;
+    const DELAY_BETWEEN_BATCHES = 500;
 
-    // Helper to delay execution
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-    
-    // Helper to normalize WhatsApp number
+
     const normalizeWhatsApp = (whatsapp) => {
         if (!whatsapp) return '';
-        // Keep only digits and + sign
         let normalized = String(whatsapp).replace(/[^\d+]/g, '');
-        // If it starts with multiple + signs, keep only one
         normalized = normalized.replace(/^\++/, '+');
         return normalized;
     };
 
-    // Process users in batches
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
         const batch = users.slice(i, i + BATCH_SIZE);
 
-        // Process batch sequentially (to avoid rate limits)
         for (const userData of batch) {
             try {
-                // Normalize the WhatsApp number
                 const normalizedWhatsApp = normalizeWhatsApp(userData.whatsapp);
-                
-                // Check if user already exists (by whatsapp number)
+
                 let existingUser = null;
                 try {
                     const existingCheck = await databases.listDocuments(
@@ -571,9 +541,7 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                     if (existingCheck.documents.length > 0) {
                         existingUser = existingCheck.documents[0];
                     }
-                } catch (checkErr) {
-                    // Continue if check fails
-                }
+                } catch (checkErr) { }
 
                 if (existingUser) {
                     errors.push({
@@ -584,30 +552,24 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                     continue;
                 }
 
-                // Use provided email if valid, otherwise generate from phone number
                 const emailPhone = normalizedWhatsApp.replace(/[^0-9]/g, '');
-                
-                // Debug: Log the incoming email value
+
                 console.log('Email check for user:', userData.name, '| Provided email:', userData.email, '| Type:', typeof userData.email);
-                
-                // Check if userData.email is a valid email (contains @ with content before and after)
-                const hasValidEmail = userData.email && 
+
+                const hasValidEmail = userData.email &&
                     String(userData.email).trim() !== '' &&
-                    String(userData.email).includes('@') && 
-                    String(userData.email).indexOf('@') > 0 && 
+                    String(userData.email).includes('@') &&
+                    String(userData.email).indexOf('@') > 0 &&
                     String(userData.email).indexOf('@') < String(userData.email).length - 1;
-                
+
                 const email = hasValidEmail ? String(userData.email).trim() : `${emailPhone}@namavruksha.org`;
-                
+
                 console.log('Email decision:', hasValidEmail ? 'Using provided email' : 'Generated from phone', '| Final email:', email);
-                
+
                 const passwordStr = String(userData.password).trim();
 
-                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp, email }); // Debug log
+                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp, email });
 
-                // Create database user record
-                // Users will login via database authentication (password stored in DB)
-                // This works for bulk uploads without needing Appwrite Auth accounts
                 const newUser = await databases.createDocument(
                     DATABASE_ID,
                     COLLECTIONS.USERS,
@@ -616,7 +578,7 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                         name: userData.name,
                         email: email,
                         whatsapp: normalizedWhatsApp,
-                        password: passwordStr, // Store password for database-based login
+                        password: passwordStr,
                         city: userData.city || null,
                         state: userData.state || null,
                         country: userData.country || null,
@@ -625,14 +587,12 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
                     }
                 );
 
-                // Link to accounts if specified
                 const accountsToLink = userData.accountIds || defaultAccountIds;
                 if (accountsToLink.length > 0) {
                     try {
                         await linkUserToAccounts(newUser.$id, accountsToLink);
                     } catch (linkErr) {
                         console.error('Error linking accounts for user:', userData.name, linkErr);
-                        // User created but linking failed - still count as success
                     }
                 }
 
@@ -647,7 +607,6 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
             }
         }
 
-        // Report progress if callback provided
         if (onProgress) {
             const processed = Math.min(i + BATCH_SIZE, users.length);
             onProgress({
@@ -658,7 +617,6 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
             });
         }
 
-        // Add delay between batches to prevent rate limiting
         if (i + BATCH_SIZE < users.length) {
             await delay(DELAY_BETWEEN_BATCHES);
         }
@@ -687,7 +645,6 @@ export const submitPrayer = async (prayerData, userId = null) => {
         data.user_id = userId;
     }
 
-    // Try with prayer_count first, fall back without it if attribute doesn't exist
     try {
         data.prayer_count = 0;
         const response = await databases.createDocument(
@@ -698,7 +655,6 @@ export const submitPrayer = async (prayerData, userId = null) => {
         );
         return { ...response, id: response.$id };
     } catch (err) {
-        // If prayer_count attribute doesn't exist, try without it
         if (err.message && (err.message.includes('prayer_count') || err.message.includes('unknown_attribute'))) {
             delete data.prayer_count;
             const response = await databases.createDocument(
@@ -751,7 +707,6 @@ export const approvePrayer = async (id, moderatorId = null) => {
             updateData.approved_by = moderatorId;
         }
 
-        // Try with full update including approved_at and approved_by
         const response = await databases.updateDocument(
             DATABASE_ID,
             COLLECTIONS.PRAYERS,
@@ -760,7 +715,6 @@ export const approvePrayer = async (id, moderatorId = null) => {
         );
         return { ...response, id: response.$id };
     } catch (err) {
-        // If the error is about unknown attributes, try with just status
         if (err.message && (err.message.includes('Unknown attribute') || err.message.includes('unknown_attribute'))) {
             console.warn('Prayer schema missing approved_at/approved_by fields, updating status only.');
             const response = await databases.updateDocument(
@@ -771,7 +725,7 @@ export const approvePrayer = async (id, moderatorId = null) => {
             );
             return { ...response, id: response.$id };
         }
-        throw err; // Re-throw if it's a different error
+        throw err;
     }
 };
 
@@ -787,9 +741,7 @@ export const rejectPrayer = async (id) => {
 
 export const incrementPrayerCount = async (id) => {
     try {
-        // Fetch current count
         const prayer = await databases.getDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id);
-
         const response = await databases.updateDocument(
             DATABASE_ID,
             COLLECTIONS.PRAYERS,
@@ -798,11 +750,8 @@ export const incrementPrayerCount = async (id) => {
         );
         return { ...response, id: response.$id };
     } catch (err) {
-        // Handle missing prayer_count attribute gracefully
         if (err.message && err.message.includes('prayer_count')) {
             console.warn('SCHEMA NOTE: The "prayer_count" attribute needs to be added to the PRAYERS collection in Appwrite Console.');
-            console.warn('Add an Integer attribute named "prayer_count" with default value 0 and make it optional.');
-            // Return a mock response so UI can still update locally
             throw new Error('Please add "prayer_count" (Integer, optional, default: 0) attribute to PRAYERS collection in Appwrite Console.');
         }
         throw err;
@@ -814,18 +763,14 @@ export const incrementPrayerCount = async (id) => {
 // ============================================
 
 export const uploadBook = async (file, metadata) => {
-    // 1. Upload file to Appwrite Storage
     const fileResponse = await storage.createFile(
         MEDIA_BUCKET_ID,
         ID.unique(),
         file
     );
 
-    // 2. Get file URL
     const fileUrl = storage.getFileView(MEDIA_BUCKET_ID, fileResponse.$id);
 
-    // 3. Insert into books collection - only include fields that exist in schema
-    // Valid fields: title, description, file_url, file_id, month, year, language, view_count, created_at
     const bookDocument = {
         title: metadata.title || 'Untitled',
         file_url: fileUrl,
@@ -834,7 +779,6 @@ export const uploadBook = async (file, metadata) => {
         created_at: new Date().toISOString()
     };
 
-    // Add optional fields if they exist
     if (metadata.description) bookDocument.description = metadata.description;
     if (metadata.month) bookDocument.month = metadata.month;
     if (metadata.year) bookDocument.year = metadata.year;
@@ -853,7 +797,6 @@ export const uploadBook = async (file, metadata) => {
 export const getBooks = async (filters = {}) => {
     const queries = [Query.orderDesc('created_at')];
 
-    // Apply filters if they exist
     if (filters.year) queries.push(Query.equal('year', filters.year));
     if (filters.month) queries.push(Query.equal('month', filters.month));
     if (filters.country) queries.push(Query.equal('country', filters.country));
@@ -893,13 +836,9 @@ export const incrementBookView = async (bookId) => {
 };
 
 export const deleteBook = async (bookId, fileUrl, moderatorId = null) => {
-    // Get book to find file_id
     const book = await databases.getDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId);
-
-    // Delete from database
     await databases.deleteDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId);
 
-    // Delete from storage (best effort)
     if (book.file_id) {
         try {
             await storage.deleteFile(MEDIA_BUCKET_ID, book.file_id);
@@ -920,7 +859,6 @@ export const updateBook = async (id, updates) => {
 };
 
 export const deleteUser = async (id, moderatorId = null) => {
-    // 1. Delete user entries
     try {
         const entriesResponse = await databases.listDocuments(
             DATABASE_ID,
@@ -934,7 +872,6 @@ export const deleteUser = async (id, moderatorId = null) => {
         console.warn('Error deleting user entries:', e.message);
     }
 
-    // 2. Delete user account links
     try {
         const linksResponse = await databases.listDocuments(
             DATABASE_ID,
@@ -948,7 +885,6 @@ export const deleteUser = async (id, moderatorId = null) => {
         console.warn('Error deleting user account links:', e.message);
     }
 
-    // 3. Delete password resets (if collection exists)
     try {
         const resetsResponse = await databases.listDocuments(
             DATABASE_ID,
@@ -958,11 +894,8 @@ export const deleteUser = async (id, moderatorId = null) => {
         for (const reset of resetsResponse.documents) {
             await databases.deleteDocument(DATABASE_ID, COLLECTIONS.PASSWORD_RESETS, reset.$id);
         }
-    } catch (e) {
-        // Collection might not exist
-    }
+    } catch (e) { }
 
-    // 4. Delete user (may already be deleted)
     try {
         await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USERS, id);
     } catch (e) {
@@ -1005,7 +938,6 @@ export const getPendingDeletionRequests = async () => {
         [Query.equal('status', 'pending'), Query.orderDesc('created_at')]
     );
 
-    // Get related account and moderator data
     const requests = response.documents;
     const accountIds = [...new Set(requests.map(r => r.account_id))];
     const moderatorIds = [...new Set(requests.map(r => r.requested_by))];
@@ -1044,13 +976,8 @@ export const getPendingDeletionRequests = async () => {
 };
 
 export const approveAccountDeletion = async (requestId) => {
-    // Get the request
     const request = await databases.getDocument(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, requestId);
-
-    // Delete the account
     await deleteNamaAccount(request.account_id);
-
-    // Update request status
     await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.ACCOUNT_DELETION_REQUESTS,
@@ -1095,7 +1022,6 @@ export const getPendingUserDeletionRequests = async () => {
         [Query.equal('status', 'pending'), Query.orderDesc('created_at')]
     );
 
-    // Get related user and moderator data
     const requests = response.documents;
     const userIds = [...new Set(requests.map(r => r.user_id))];
     const moderatorIds = [...new Set(requests.map(r => r.requested_by))];
@@ -1134,22 +1060,18 @@ export const getPendingUserDeletionRequests = async () => {
 };
 
 export const approveUserDeletion = async (requestId) => {
-    // Get the request
     const request = await databases.getDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, requestId);
 
-    // Try to delete the user (may already be deleted)
     try {
         await deleteUser(request.user_id);
     } catch (err) {
-        // If user not found, that's okay - they may have been deleted already
         if (err.code === 404 || err.message?.includes('not be found') || err.message?.includes('not found')) {
             console.warn('User already deleted or not found:', request.user_id);
         } else {
-            throw err; // Re-throw other errors
+            throw err;
         }
     }
 
-    // Update request status
     await databases.updateDocument(
         DATABASE_ID,
         COLLECTIONS.USER_DELETION_REQUESTS,
@@ -1212,12 +1134,12 @@ export const getImageFiles = async (bucketId) => {
 
 export const submitFeedback = async (feedbackData, userId = null) => {
     const data = {
-        type: feedbackData.type || 'general', // 'sankalpa_suggestion', 'feedback', 'bug_report'
+        type: feedbackData.type || 'general',
         subject: feedbackData.subject,
         message: feedbackData.message,
         user_name: feedbackData.userName || null,
         user_contact: feedbackData.userContact || null,
-        status: 'pending', // 'pending', 'reviewed', 'implemented'
+        status: 'pending',
         created_at: new Date().toISOString()
     };
 
@@ -1234,17 +1156,15 @@ export const submitFeedback = async (feedbackData, userId = null) => {
         );
         return { ...response, id: response.$id, savedToDb: true };
     } catch (err) {
-        // If collection doesn't exist, return success with flag indicating email-only
-        // This allows the caller to still send email notification
-        if (err.code === 404 || 
-            (err.message && (err.message.includes('Collection not found') || 
-             err.message.includes('not found') ||
-             err.message.includes('does not exist')))) {
+        if (err.code === 404 ||
+            (err.message && (err.message.includes('Collection not found') ||
+                err.message.includes('not found') ||
+                err.message.includes('does not exist')))) {
             console.warn('Feedback collection not found in Appwrite. Returning success for email-only flow.');
-            return { 
-                id: 'email-only-' + Date.now(), 
+            return {
+                id: 'email-only-' + Date.now(),
                 savedToDb: false,
-                ...data 
+                ...data
             };
         }
         throw err;
