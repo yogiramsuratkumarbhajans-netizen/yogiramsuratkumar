@@ -7,6 +7,8 @@ import {
     createNamaAccount,
     updateNamaAccount,
     getAllUsers,
+    updateUser,
+    getAllNamaEntries,
     getAccountStats,
     getUserAccountLinks,
     linkUserToAccounts,
@@ -53,10 +55,14 @@ const AdminDashboardPage = () => {
     const [prayers, setPrayers] = useState([]);
     const [books, setBooks] = useState([]);
     const [audioFiles, setAudioFiles] = useState([]);
-
     const [deletionRequests, setDeletionRequests] = useState([]);
     const [userDeletionRequests, setUserDeletionRequests] = useState([]);
     const [selectedUserIds, setSelectedUserIds] = useState([]);
+
+    // Submission log filters
+    const [logFilterUser, setLogFilterUser] = useState('');
+    const [logFilterAccount, setLogFilterAccount] = useState('');
+    const [logFilterDate, setLogFilterDate] = useState('');
 
     const [showAccountModal, setShowAccountModal] = useState(false);
     const [editingAccount, setEditingAccount] = useState(null);
@@ -74,6 +80,7 @@ const AdminDashboardPage = () => {
     const [userCurrentBanks, setUserCurrentBanks] = useState([]);
 
     const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+
     const [showBookEditModal, setShowBookEditModal] = useState(false);
     const [editingBook, setEditingBook] = useState(null);
     const [bookTitle, setBookTitle] = useState('');
@@ -86,64 +93,38 @@ const AdminDashboardPage = () => {
         loadData();
     }, [isAdmin, navigate]);
 
-    // ── OPTIMIZED: nama_entries fetched once, shared with entries tab + getAccountStats ──
     const loadData = async () => {
         try {
-            const [
-                accountsData, usersData, rawEntriesRes,
-                prayersData, booksData,
-                deletionRequestsData, userDeletionRequestsData
-            ] = await Promise.all([
+            const [accountsData, usersData, entriesData, statsData, prayersData, booksData, deletionRequestsData, userDeletionRequestsData] = await Promise.all([
                 getAllNamaAccounts(),
                 getAllUsers(),
-                // Single fetch for nama_entries — used for both Entries tab and account stats
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [
-                    Query.orderDesc('created_at'), Query.limit(1000)
-                ]),
+                getAllNamaEntries(),
+                getAccountStats(),
                 getAllPrayers(),
                 getBooks(),
                 getPendingDeletionRequests(),
                 getPendingUserDeletionRequests()
             ]);
-
-            // Build entries with user/account names (replaces getAllNamaEntries)
-            const usersMap = Object.fromEntries(usersData.map(u => [u.id, u]));
-            const accountsMap = Object.fromEntries(accountsData.map(a => [a.id, a]));
-
-            const enrichedEntries = rawEntriesRes.documents.map(entry => ({
-                ...entry,
-                id: entry.$id,
-                users: usersMap[entry.user_id]
-                    ? { name: usersMap[entry.user_id].name, whatsapp: usersMap[entry.user_id].whatsapp }
-                    : null,
-                nama_accounts: accountsMap[entry.account_id]
-                    ? { name: accountsMap[entry.account_id].name }
-                    : null
-            }));
-
-            // Pass prefetched entries to getAccountStats — zero extra fetch
-            const statsData = await getAccountStats(rawEntriesRes.documents);
-
             setAccounts(accountsData);
             setUsers(usersData);
-            setEntries(enrichedEntries);
+            setEntries(entriesData);
             setAccountStats(statsData);
             setPrayers(prayersData);
             setBooks(booksData);
             setDeletionRequests(deletionRequestsData);
             setUserDeletionRequests(userDeletionRequestsData);
 
-            // Load moderators
             try {
                 const modsResponse = await databases.listDocuments(
-                    DATABASE_ID, COLLECTIONS.MODERATORS, [Query.orderDesc('created_at')]
+                    DATABASE_ID,
+                    COLLECTIONS.MODERATORS,
+                    [Query.orderDesc('created_at')]
                 );
                 setModerators(modsResponse.documents.map(doc => ({ ...doc, id: doc.$id })) || []);
             } catch (modErr) {
                 console.error('Error loading moderators:', modErr);
             }
 
-            // Load audio files
             try {
                 const response = await storage.listFiles(MEDIA_BUCKET_ID);
                 const audioExtensions = ['.mp3', '.wav', '.ogg', '.m4a', '.aac', '.flac'];
@@ -168,8 +149,6 @@ const AdminDashboardPage = () => {
             setLoading(false);
         }
     };
-
-    // ── Everything below is 100% unchanged from your original ──
 
     const fetchAudioFiles = async () => {
         try {
@@ -206,7 +185,10 @@ const AdminDashboardPage = () => {
         }
     };
 
-    const handleLogout = () => { logout(); navigate('/'); };
+    const handleLogout = () => {
+        logout();
+        navigate('/');
+    };
 
     const handleSaveAccount = async () => {
         if (!accountName.trim()) { error('Account name is required'); return; }
@@ -222,7 +204,9 @@ const AdminDashboardPage = () => {
             setAccountName('');
             setEditingAccount(null);
             loadData();
-        } catch (err) { error('Failed to save account'); }
+        } catch (err) {
+            error('Failed to save account');
+        }
     };
 
     const handleToggleAccountStatus = async (account) => {
@@ -230,15 +214,19 @@ const AdminDashboardPage = () => {
             await updateNamaAccount(account.id, { is_active: !account.is_active });
             success(`Account ${account.is_active ? 'disabled' : 'enabled'}`);
             loadData();
-        } catch (err) { error('Failed to update account status'); }
+        } catch (err) {
+            error('Failed to update account status');
+        }
     };
 
     const handleToggleUserStatus = async (user) => {
         try {
-            await updateNamaAccount(user.id, { is_active: !user.is_active });
+            await updateUser(user.id, { is_active: !user.is_active });
             success(`User ${user.is_active ? 'disabled' : 'enabled'}`);
             loadData();
-        } catch (err) { error('Failed to update user status'); }
+        } catch (err) {
+            error('Failed to update user status');
+        }
     };
 
     const handleDeleteUser = async (user) => {
@@ -259,7 +247,9 @@ const AdminDashboardPage = () => {
             await deletePrayer(id);
             success('Prayer deleted');
             loadData();
-        } catch (err) { error(err.message || 'Failed to delete prayer'); }
+        } catch (err) {
+            error(err.message || 'Failed to delete prayer');
+        }
     };
 
     const handleDeleteBook = async (book) => {
@@ -268,7 +258,9 @@ const AdminDashboardPage = () => {
             await deleteBook(book.id, book.file_url);
             success('Book deleted successfully');
             loadData();
-        } catch (err) { error(err.message || 'Failed to delete book'); }
+        } catch (err) {
+            error(err.message || 'Failed to delete book');
+        }
     };
 
     const handleDeleteEntry = async (id) => {
@@ -277,16 +269,20 @@ const AdminDashboardPage = () => {
             await deleteNamaEntry(id);
             success('Entry deleted successfully');
             loadData();
-        } catch (err) { error(err.message || 'Failed to delete entry'); }
+        } catch (err) {
+            error(err.message || 'Failed to delete entry');
+        }
     };
 
     const handleApproveAccountDeletion = async (requestId) => {
-        if (!confirm('Are you sure you want to approve this deletion? The account will be permanently deleted.')) return;
+        if (!confirm('Are you sure you want to approve this deletion?')) return;
         try {
             await approveAccountDeletion(requestId);
             success('Account deleted successfully');
             loadData();
-        } catch (err) { error(err.message || 'Failed to approve deletion'); }
+        } catch (err) {
+            error(err.message || 'Failed to approve deletion');
+        }
     };
 
     const handleRejectAccountDeletion = async (requestId) => {
@@ -295,16 +291,20 @@ const AdminDashboardPage = () => {
             await rejectAccountDeletion(requestId);
             success('Deletion request rejected');
             loadData();
-        } catch (err) { error(err.message || 'Failed to reject request'); }
+        } catch (err) {
+            error(err.message || 'Failed to reject request');
+        }
     };
 
     const handleApproveUserDeletion = async (requestId) => {
-        if (!confirm('Are you sure you want to approve this user deletion? The user will be permanently deleted.')) return;
+        if (!confirm('Are you sure you want to approve this user deletion?')) return;
         try {
             await approveUserDeletion(requestId);
             success('User deleted successfully');
             loadData();
-        } catch (err) { error(err.message || 'Failed to approve user deletion'); }
+        } catch (err) {
+            error(err.message || 'Failed to approve user deletion');
+        }
     };
 
     const handleRejectUserDeletion = async (requestId) => {
@@ -313,7 +313,9 @@ const AdminDashboardPage = () => {
             await rejectUserDeletion(requestId);
             success('User deletion request rejected');
             loadData();
-        } catch (err) { error(err.message || 'Failed to reject user request'); }
+        } catch (err) {
+            error(err.message || 'Failed to reject user request');
+        }
     };
 
     const handleDirectDeleteAccount = async (account) => {
@@ -322,32 +324,39 @@ const AdminDashboardPage = () => {
             await deleteNamaAccount(account.id);
             success('Account deleted successfully');
             loadData();
-        } catch (err) { error(err.message || 'Failed to delete account'); }
+        } catch (err) {
+            error(err.message || 'Failed to delete account');
+        }
     };
 
     const handleSelectAll = (e) => {
-        if (e.target.checked) setSelectedUserIds(users.map(u => u.id));
-        else setSelectedUserIds([]);
+        if (e.target.checked) {
+            setSelectedUserIds(users.map(u => u.id));
+        } else {
+            setSelectedUserIds([]);
+        }
     };
 
     const handleSelectUser = (id) => {
-        setSelectedUserIds(prev => prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]);
+        setSelectedUserIds(prev =>
+            prev.includes(id) ? prev.filter(uid => uid !== id) : [...prev, id]
+        );
     };
 
     const handleBulkDelete = async () => {
         if (selectedUserIds.length === 0) return;
-        if (!confirm(`Are you sure you want to delete ${selectedUserIds.length} users? This action cannot be undone.`)) return;
+        if (!confirm(`Are you sure you want to delete ${selectedUserIds.length} users?`)) return;
         try {
             let successCount = 0;
             for (const userId of selectedUserIds) {
-                try { await deleteUser(userId); successCount++; }
-                catch (err) { console.error(`Failed to delete user ${userId}`, err); }
+                try { await deleteUser(userId); successCount++; } catch (err) { console.error(`Failed to delete user ${userId}`, err); }
             }
-            if (successCount === selectedUserIds.length) success(`Successfully deleted ${successCount} users.`);
-            else success(`Deleted ${successCount} out of ${selectedUserIds.length} users. Some failed.`);
+            success(`Deleted ${successCount} out of ${selectedUserIds.length} users.`);
             setSelectedUserIds([]);
             loadData();
-        } catch (err) { error('An error occurred during bulk deletion.'); }
+        } catch (err) {
+            error('An error occurred during bulk deletion.');
+        }
     };
 
     const handleOpenBankAllocation = async (user) => {
@@ -358,21 +367,27 @@ const AdminDashboardPage = () => {
             setUserCurrentBanks(linkedAccountIds);
             setSelectedBanksForAllocation(linkedAccountIds);
             setShowBankAllocationModal(true);
-        } catch (err) { error('Failed to load user bank links'); }
+        } catch (err) {
+            error('Failed to load user bank links');
+        }
     };
 
     const handleSaveBankAllocation = async () => {
         if (!selectedUserForAllocation) return;
         try {
             const newBanks = selectedBanksForAllocation.filter(id => !userCurrentBanks.includes(id));
-            if (newBanks.length > 0) await linkUserToAccounts(selectedUserForAllocation.id, newBanks);
+            if (newBanks.length > 0) {
+                await linkUserToAccounts(selectedUserForAllocation.id, newBanks);
+            }
             success('Bank accounts allocated successfully!');
             setShowBankAllocationModal(false);
             setSelectedUserForAllocation(null);
             setSelectedBanksForAllocation([]);
             setUserCurrentBanks([]);
             loadData();
-        } catch (err) { error('Failed to allocate bank accounts'); }
+        } catch (err) {
+            error('Failed to allocate bank accounts');
+        }
     };
 
     const toggleBankSelection = (accountId) => {
@@ -397,7 +412,6 @@ const AdminDashboardPage = () => {
                     alert(`Failed to upload ${createFailed.length} devotees:\n\n${errorDetails}`);
                 }
             }
-            if (results.length === 0 && uploadErrors.length === 0) error('No users were processed. Please check your file.');
             setShowBulkUploadModal(false);
             loadData();
         } catch (err) {
@@ -413,15 +427,19 @@ const AdminDashboardPage = () => {
         }
         try {
             await databases.createDocument(DATABASE_ID, COLLECTIONS.MODERATORS, ID.unique(), {
-                name: moderatorName, username: moderatorUsername,
-                password_hash: moderatorPassword, is_active: true,
+                name: moderatorName,
+                username: moderatorUsername,
+                password_hash: moderatorPassword,
+                is_active: true,
                 created_at: new Date().toISOString()
             });
             success('Moderator created successfully');
             setShowModeratorModal(false);
             setModeratorName(''); setModeratorUsername(''); setModeratorPassword('');
             loadData();
-        } catch (err) { error('Failed to create moderator. Username may already exist.'); }
+        } catch (err) {
+            error('Failed to create moderator. Username may already exist.');
+        }
     };
 
     const handleToggleModeratorStatus = async (mod) => {
@@ -429,7 +447,9 @@ const AdminDashboardPage = () => {
             await databases.updateDocument(DATABASE_ID, COLLECTIONS.MODERATORS, mod.id, { is_active: !mod.is_active });
             success(`Moderator ${mod.is_active ? 'disabled' : 'enabled'}`);
             loadData();
-        } catch (err) { error('Failed to update moderator status'); }
+        } catch (err) {
+            error('Failed to update moderator status');
+        }
     };
 
     const handleDeleteModerator = async (id) => {
@@ -438,16 +458,27 @@ const AdminDashboardPage = () => {
             await databases.deleteDocument(DATABASE_ID, COLLECTIONS.MODERATORS, id);
             success('Moderator deleted');
             loadData();
-        } catch (err) { error(err.message || 'Failed to delete moderator'); }
+        } catch (err) {
+            error(err.message || 'Failed to delete moderator');
+        }
     };
 
-    const formatDate = (dateStr) => new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const formatDate = (dateStr) => {
+        return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    const formatDateTime = (dateStr) => {
+        return new Date(dateStr).toLocaleString('en-IN', {
+            day: 'numeric', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+    };
+
     const formatNumber = (num) => num?.toLocaleString() || '0';
 
     const handlePlayAudio = (audio) => {
         if (currentlyPlaying === audio.id) {
-            if (audioRef.current.paused) audioRef.current.play();
-            else audioRef.current.pause();
+            if (audioRef.current.paused) { audioRef.current.play(); } else { audioRef.current.pause(); }
         } else {
             const fileUrl = `https://cloud.appwrite.io/v1/storage/buckets/${MEDIA_BUCKET_ID}/files/${audio.id}/view?project=682de53c003c04cdaeda`;
             if (audioRef.current) {
@@ -470,24 +501,50 @@ const AdminDashboardPage = () => {
         let usersToExport = users;
         if (count !== 'all') usersToExport = users.slice(0, parseInt(count));
         const exportData = usersToExport.map((user, index) => ({
-            'S.No': index + 1, 'Name': user.name,
-            'WhatsApp': user.whatsapp ? "'" + String(user.whatsapp) : '',
-            'Email': user.email || '', 'City': user.city || '',
-            'State': user.state || '', 'Country': user.country || '',
-            'Status': user.is_active ? 'Active' : 'Disabled',
+            'S.No': index + 1, 'Name': user.name, 'WhatsApp': user.whatsapp || '',
+            'Email': user.email || '', 'City': user.city || '', 'State': user.state || '',
+            'Country': user.country || '', 'Status': user.is_active ? 'Active' : 'Disabled',
             'Joined': formatDate(user.created_at)
         }));
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(exportData);
-        ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }];
-        const range = XLSX.utils.decode_range(ws['!ref']);
-        for (let row = range.s.r + 1; row <= range.e.r; row++) {
-            const cellAddress = XLSX.utils.encode_cell({ r: row, c: 2 });
-            if (ws[cellAddress]) ws[cellAddress].t = 's';
-        }
+        ws['!cols'] = [{ wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 10 }, { wch: 15 }];
         XLSX.utils.book_append_sheet(wb, ws, 'Users');
         XLSX.writeFile(wb, `namavruksha_users_${count === 'all' ? 'all' : count}_${new Date().toISOString().split('T')[0]}.xlsx`);
         success(`Exported ${usersToExport.length} users to Excel!`);
+    };
+
+    // ── Submission Log filtered entries ──
+    const getFilteredEntries = () => {
+        return entries.filter(entry => {
+            const userName = (entry.users?.name || '').toLowerCase();
+            const accountName = (entry.nama_accounts?.name || '').toLowerCase();
+            const entryDate = entry.entry_date || entry.$createdAt || '';
+            const matchUser = !logFilterUser || userName.includes(logFilterUser.toLowerCase());
+            const matchAccount = !logFilterAccount || accountName.includes(logFilterAccount.toLowerCase());
+            const matchDate = !logFilterDate || entryDate.startsWith(logFilterDate);
+            return matchUser && matchAccount && matchDate;
+        });
+    };
+
+    const handleExportLogToExcel = () => {
+        const filtered = getFilteredEntries();
+        const exportData = filtered.map((entry, i) => ({
+            'S.No': i + 1,
+            'Submitted At': formatDateTime(entry.$createdAt || entry.created_at),
+            'User': entry.users?.name || 'Unknown',
+            'Sankalpa': entry.nama_accounts?.name || 'Unknown',
+            'Nama Count': entry.count,
+            'Devotees': entry.devotee_count || 1,
+            'Offering Date': entry.entry_date || '-',
+            'Type': entry.source_type
+        }));
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 10 }];
+        XLSX.utils.book_append_sheet(wb, ws, 'Submission Log');
+        XLSX.writeFile(wb, `namavruksha_log_${new Date().toISOString().split('T')[0]}.xlsx`);
+        success(`Exported ${filtered.length} entries!`);
     };
 
     if (!isAdmin) return null;
@@ -514,34 +571,24 @@ const AdminDashboardPage = () => {
             <nav className="admin-nav">
                 <div className="container">
                     <div className="nav-tabs">
-                        <button className={`nav-tab ${activeTab === 'accounts' ? 'active' : ''}`} onClick={() => setActiveTab('accounts')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
-                            Accounts
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'users' ? 'active' : ''}`} onClick={() => setActiveTab('users')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                            Users
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'entries' ? 'active' : ''}`} onClick={() => setActiveTab('entries')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /></svg>
-                            Entries
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'reports' ? 'active' : ''}`} onClick={() => setActiveTab('reports')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
-                            Reports
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'moderators' ? 'active' : ''}`} onClick={() => setActiveTab('moderators')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M12 8v4m0 4h.01" /></svg>
-                            Moderators
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'prayers' ? 'active' : ''}`} onClick={() => setActiveTab('prayers')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>
-                            Prayers & Books
-                        </button>
-                        <button className={`nav-tab ${activeTab === 'gallery' ? 'active' : ''}`} onClick={() => setActiveTab('gallery')}>
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
-                            Gallery
-                        </button>
+                        {[
+                            { key: 'accounts', label: 'Accounts' },
+                            { key: 'users', label: 'Users' },
+                            { key: 'entries', label: 'Entries' },
+                            { key: 'log', label: '📋 Submission Log' },
+                            { key: 'reports', label: 'Reports' },
+                            { key: 'moderators', label: 'Moderators' },
+                            { key: 'prayers', label: 'Prayers & Books' },
+                            { key: 'gallery', label: 'Gallery' },
+                        ].map(tab => (
+                            <button
+                                key={tab.key}
+                                className={`nav-tab ${activeTab === tab.key ? 'active' : ''}`}
+                                onClick={() => setActiveTab(tab.key)}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
             </nav>
@@ -549,16 +596,19 @@ const AdminDashboardPage = () => {
             <main className="admin-main">
                 <div className="container">
                     {loading ? (
-                        <div className="page-loader"><span className="loader"></span><p>Loading admin data...</p></div>
+                        <div className="page-loader">
+                            <span className="loader"></span>
+                            <p>Loading admin data...</p>
+                        </div>
                     ) : (
                         <>
+                            {/* Accounts Tab */}
                             {activeTab === 'accounts' && (
                                 <section className="admin-section">
                                     <div className="section-header">
                                         <h2>Namavruksha Sankalpas</h2>
                                         <button className="btn btn-primary" onClick={() => { setEditingAccount(null); setAccountName(''); setShowAccountModal(true); }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                            Add Account
+                                            + Add Account
                                         </button>
                                     </div>
                                     <div className="table-container">
@@ -584,7 +634,7 @@ const AdminDashboardPage = () => {
                                     </div>
                                     {deletionRequests.length > 0 && (
                                         <div style={{ marginTop: '30px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                                            <h3 style={{ color: 'var(--text-color)', marginBottom: '15px' }}>Pending Account Deletion Requests ({deletionRequests.length})</h3>
+                                            <h3 style={{ marginBottom: '15px' }}>Pending Account Deletion Requests ({deletionRequests.length})</h3>
                                             <div className="table-container">
                                                 <table className="table">
                                                     <thead><tr><th>Account Name</th><th>Requested By</th><th>Requested At</th><th>Actions</th></tr></thead>
@@ -609,7 +659,7 @@ const AdminDashboardPage = () => {
                                     )}
                                     {userDeletionRequests.length > 0 && (
                                         <div style={{ marginTop: '30px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                                            <h3 style={{ color: 'var(--text-color)', marginBottom: '15px' }}>Pending User Deletion Requests ({userDeletionRequests.length})</h3>
+                                            <h3 style={{ marginBottom: '15px' }}>Pending User Deletion Requests ({userDeletionRequests.length})</h3>
                                             <div className="table-container">
                                                 <table className="table">
                                                     <thead><tr><th>User Name</th><th>Requested By</th><th>Requested At</th><th>Actions</th></tr></thead>
@@ -635,6 +685,7 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* Users Tab */}
                             {activeTab === 'users' && (
                                 <section className="admin-section">
                                     <div className="section-header">
@@ -649,21 +700,19 @@ const AdminDashboardPage = () => {
                                             </div>
                                             {selectedUserIds.length > 0 && (
                                                 <button className="btn btn-danger" onClick={handleBulkDelete} style={{ display: 'flex', alignItems: 'center', gap: '6px', backgroundColor: '#ef4444', color: 'white' }}>
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                                                     Delete Selected ({selectedUserIds.length})
                                                 </button>
                                             )}
-                                            <button className="btn btn-primary" onClick={() => setShowBulkUploadModal(true)}>
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="17 8 12 3 7 8" /><line x1="12" y1="3" x2="12" y2="15" /></svg>
-                                                Bulk Upload
-                                            </button>
+                                            <button className="btn btn-primary" onClick={() => setShowBulkUploadModal(true)}>Bulk Upload</button>
                                         </div>
                                     </div>
                                     <div className="table-container">
                                         <table className="table">
                                             <thead>
                                                 <tr>
-                                                    <th style={{ width: '40px' }}><input type="checkbox" checked={users.length > 0 && selectedUserIds.length === users.length} onChange={handleSelectAll} style={{ cursor: 'pointer' }} /></th>
+                                                    <th style={{ width: '40px' }}>
+                                                        <input type="checkbox" checked={users.length > 0 && selectedUserIds.length === users.length} onChange={handleSelectAll} style={{ cursor: 'pointer' }} />
+                                                    </th>
                                                     <th>Name</th><th>WhatsApp</th><th>Location</th><th>Status</th><th>Joined</th><th>Actions</th>
                                                 </tr>
                                             </thead>
@@ -691,6 +740,7 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* Entries Tab */}
                             {activeTab === 'entries' && (
                                 <section className="admin-section">
                                     <div className="section-header"><h2>Recent Nama Entries</h2></div>
@@ -714,6 +764,113 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* ── NEW: Submission Log Tab ── */}
+                            {activeTab === 'log' && (
+                                <section className="admin-section">
+                                    <div className="section-header">
+                                        <h2>📋 Submission Log ({getFilteredEntries().length} entries)</h2>
+                                        <button
+                                            className="btn btn-primary"
+                                            onClick={handleExportLogToExcel}
+                                            style={{ background: '#16a34a' }}
+                                        >
+                                            📊 Export to Excel
+                                        </button>
+                                    </div>
+
+                                    {/* Filters */}
+                                    <div style={{ display: 'flex', gap: '12px', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '0.8rem', color: '#666', display: 'block', marginBottom: '4px' }}>Filter by User</label>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Search name..."
+                                                value={logFilterUser}
+                                                onChange={e => setLogFilterUser(e.target.value)}
+                                                style={{ width: '180px', padding: '6px 10px', fontSize: '0.9rem' }}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '0.8rem', color: '#666', display: 'block', marginBottom: '4px' }}>Filter by Sankalpa</label>
+                                            <input
+                                                type="text"
+                                                className="form-input"
+                                                placeholder="Search sankalpa..."
+                                                value={logFilterAccount}
+                                                onChange={e => setLogFilterAccount(e.target.value)}
+                                                style={{ width: '200px', padding: '6px 10px', fontSize: '0.9rem' }}
+                                            />
+                                        </div>
+                                        <div className="form-group" style={{ margin: 0 }}>
+                                            <label style={{ fontSize: '0.8rem', color: '#666', display: 'block', marginBottom: '4px' }}>Filter by Date</label>
+                                            <input
+                                                type="date"
+                                                className="form-input"
+                                                value={logFilterDate}
+                                                onChange={e => setLogFilterDate(e.target.value)}
+                                                style={{ padding: '6px 10px', fontSize: '0.9rem' }}
+                                            />
+                                        </div>
+                                        {(logFilterUser || logFilterAccount || logFilterDate) && (
+                                            <button
+                                                className="btn btn-sm btn-ghost"
+                                                onClick={() => { setLogFilterUser(''); setLogFilterAccount(''); setLogFilterDate(''); }}
+                                            >
+                                                ✕ Clear filters
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="table-container">
+                                        <table className="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Submitted At</th>
+                                                    <th>User</th>
+                                                    <th>Sankalpa</th>
+                                                    <th>Nama Count</th>
+                                                    <th>Devotees</th>
+                                                    <th>Offering Date</th>
+                                                    <th>Type</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {getFilteredEntries().map(entry => (
+                                                    <tr key={entry.id}>
+                                                        <td style={{ fontSize: '0.82rem', color: '#555' }}>
+                                                            {formatDateTime(entry.$createdAt || entry.created_at)}
+                                                        </td>
+                                                        <td><strong>{entry.users?.name || 'Unknown'}</strong></td>
+                                                        <td>{entry.nama_accounts?.name || 'Unknown'}</td>
+                                                        <td className="count-cell" style={{ color: '#8B0000', fontWeight: '700' }}>
+                                                            {formatNumber(entry.count)}
+                                                        </td>
+                                                        <td style={{ textAlign: 'center' }}>
+                                                            {entry.devotee_count > 1 ? (
+                                                                <span style={{ background: '#fff3e0', color: '#FF6600', padding: '2px 8px', borderRadius: '12px', fontSize: '0.82rem', fontWeight: '600' }}>
+                                                                    👥 {entry.devotee_count}
+                                                                </span>
+                                                            ) : '1'}
+                                                        </td>
+                                                        <td>{entry.entry_date || '-'}</td>
+                                                        <td>
+                                                            <span className={`badge badge-${entry.source_type === 'audio' ? 'info' : 'success'}`}>
+                                                                {entry.source_type}
+                                                            </span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {getFilteredEntries().length === 0 && (
+                                                    <tr><td colSpan="7" style={{ textAlign: 'center', color: '#999', padding: '2rem' }}>No entries match the filters.</td></tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </section>
+                            )}
+
+                            {/* Reports Tab */}
                             {activeTab === 'reports' && (
                                 <section className="admin-section">
                                     <div className="section-header"><h2>Account-wise Reports</h2></div>
@@ -737,14 +894,12 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* Moderators Tab */}
                             {activeTab === 'moderators' && (
                                 <section className="admin-section">
                                     <div className="section-header">
                                         <h2>Moderator Accounts</h2>
-                                        <button className="btn btn-primary" onClick={() => setShowModeratorModal(true)}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-                                            Add Moderator
-                                        </button>
+                                        <button className="btn btn-primary" onClick={() => setShowModeratorModal(true)}>+ Add Moderator</button>
                                     </div>
                                     {moderators.length === 0 ? (
                                         <div className="empty-state"><p>No moderators yet. Create one to get started.</p></div>
@@ -774,12 +929,13 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* Prayers & Books Tab */}
                             {activeTab === 'prayers' && (
                                 <section className="admin-section">
                                     <div className="section-header"><h2>Prayers & Books Management</h2></div>
                                     <div className="admin-grid-layout" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
                                         <div className="upload-section subsection">
-                                            <BookUpload onUploadSuccess={() => { success('Book uploaded successfully! It will appear in the Digital Library.'); loadData(); }} />
+                                            <BookUpload onUploadSuccess={() => { success('Book uploaded successfully!'); loadData(); }} />
                                         </div>
                                         <div className="subsection">
                                             <h3>Prayers ({prayers.length})</h3>
@@ -831,6 +987,7 @@ const AdminDashboardPage = () => {
                                 </section>
                             )}
 
+                            {/* Gallery Tab */}
                             {activeTab === 'gallery' && (
                                 <section className="admin-section">
                                     <div className="section-header">
@@ -838,15 +995,19 @@ const AdminDashboardPage = () => {
                                         <p className="section-description">Upload images and audio files for the public galleries</p>
                                     </div>
                                     <div className="media-upload-grid">
-                                        <div className="upload-section"><ImageUpload onUploadComplete={() => { success('Images uploaded! They will appear in Photo Gallery.'); }} /></div>
-                                        <div className="upload-section"><AudioUpload onUploadComplete={() => { success('Audio uploaded! It will appear in Audio Gallery.'); loadData(); }} /></div>
+                                        <div className="upload-section">
+                                            <ImageUpload onUploadComplete={() => success('Images uploaded! They will appear in Photo Gallery.')} />
+                                        </div>
+                                        <div className="upload-section">
+                                            <AudioUpload onUploadComplete={() => { success('Audio uploaded!'); loadData(); }} />
+                                        </div>
                                     </div>
                                     <audio ref={audioRef} onEnded={() => setCurrentlyPlaying(null)} style={{ display: 'none' }} />
                                     <div style={{ marginTop: '2rem' }}>
                                         <h3 style={{ marginBottom: '1rem', color: '#333', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                             🎵 Uploaded Audio Files ({audioFiles.length})
                                             {currentlyPlaying && (
-                                                <button onClick={handleStopAudio} style={{ marginLeft: '1rem', background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '4px' }}>⏹️ Stop Playing</button>
+                                                <button onClick={handleStopAudio} style={{ marginLeft: '1rem', background: '#ef4444', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }}>⏹️ Stop</button>
                                             )}
                                         </h3>
                                         {audioFiles.length === 0 ? (
@@ -856,14 +1017,11 @@ const AdminDashboardPage = () => {
                                                 {audioFiles.map(audio => (
                                                     <div key={audio.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: currentlyPlaying === audio.id ? 'linear-gradient(135deg, #fff3e0 0%, #fff9f0 100%)' : '#fff', border: currentlyPlaying === audio.id ? '2px solid #FF9933' : '1px solid #e0e0e0', borderRadius: '8px', borderLeft: audio.isNamaJapa ? '4px solid #FF9933' : '4px solid #4CAF50', transition: 'all 0.3s ease' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                            <button onClick={() => handlePlayAudio(audio)} style={{ width: '48px', height: '48px', borderRadius: '50%', border: 'none', background: currentlyPlaying === audio.id ? 'linear-gradient(135deg, #FF9933 0%, #FF6600 100%)' : 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', transition: 'transform 0.2s ease' }} onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.1)'} onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}>
+                                                            <button onClick={() => handlePlayAudio(audio)} style={{ width: '48px', height: '48px', borderRadius: '50%', border: 'none', background: currentlyPlaying === audio.id ? 'linear-gradient(135deg, #FF9933 0%, #FF6600 100%)' : 'linear-gradient(135deg, #4CAF50 0%, #45a049 100%)', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
                                                                 {currentlyPlaying === audio.id ? '⏸️' : '▶️'}
                                                             </button>
                                                             <div>
-                                                                <div style={{ fontWeight: 'bold', color: '#333', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                                                    {audio.title}
-                                                                    {currentlyPlaying === audio.id && <span style={{ color: '#FF9933', fontSize: '0.85rem' }}>🔊 Playing</span>}
-                                                                </div>
+                                                                <div style={{ fontWeight: 'bold', color: '#333' }}>{audio.title} {currentlyPlaying === audio.id && <span style={{ color: '#FF9933', fontSize: '0.85rem' }}>🔊 Playing</span>}</div>
                                                                 <div style={{ fontSize: '0.8rem', color: '#666' }}>
                                                                     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', background: audio.isNamaJapa ? 'rgba(255,153,51,0.15)' : 'rgba(76,175,80,0.15)', color: audio.isNamaJapa ? '#FF6600' : '#2E7D32', marginRight: '8px' }}>
                                                                         {audio.isNamaJapa ? '🔁 Nama Japa (4x Loop)' : '▶️ Normal (Play Once)'}
@@ -872,10 +1030,7 @@ const AdminDashboardPage = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                        <button onClick={() => handleDeleteAudio(audio.id, audio.title)} style={{ background: '#ff4444', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3 6 5 6 21 6"></polyline><path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path></svg>
-                                                            Delete
-                                                        </button>
+                                                        <button onClick={() => handleDeleteAudio(audio.id, audio.title)} style={{ background: '#ff4444', color: 'white', border: 'none', padding: '0.5rem 1rem', borderRadius: '6px', cursor: 'pointer' }}>🗑 Delete</button>
                                                     </div>
                                                 ))}
                                             </div>
@@ -888,12 +1043,13 @@ const AdminDashboardPage = () => {
                 </div>
             </main>
 
+            {/* Account Modal */}
             {showAccountModal && (
                 <div className="modal-overlay" onClick={() => setShowAccountModal(false)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 className="modal-title">{editingAccount ? 'Edit Account' : 'Add New Account'}</h3>
-                            <button className="modal-close" onClick={() => setShowAccountModal(false)}><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+                            <button className="modal-close" onClick={() => setShowAccountModal(false)}>✕</button>
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
@@ -909,12 +1065,13 @@ const AdminDashboardPage = () => {
                 </div>
             )}
 
+            {/* Create Moderator Modal */}
             {showModeratorModal && (
                 <div className="modal-overlay" onClick={() => setShowModeratorModal(false)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 className="modal-title">Create Moderator</h3>
-                            <button className="modal-close" onClick={() => setShowModeratorModal(false)}><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+                            <button className="modal-close" onClick={() => setShowModeratorModal(false)}>✕</button>
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
@@ -928,14 +1085,8 @@ const AdminDashboardPage = () => {
                             <div className="form-group">
                                 <label className="form-label">Password</label>
                                 <div className="password-input-wrapper">
-                                    <input type={showPassword ? "text" : "password"} value={moderatorPassword} onChange={e => setModeratorPassword(e.target.value)} className="form-input" placeholder="Enter password" />
-                                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>
-                                        {showPassword ? (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                                        )}
-                                    </button>
+                                    <input type={showPassword ? 'text' : 'password'} value={moderatorPassword} onChange={e => setModeratorPassword(e.target.value)} className="form-input" placeholder="Enter password" />
+                                    <button type="button" className="password-toggle" onClick={() => setShowPassword(!showPassword)}>{showPassword ? '🙈' : '👁'}</button>
                                 </div>
                             </div>
                         </div>
@@ -947,12 +1098,13 @@ const AdminDashboardPage = () => {
                 </div>
             )}
 
+            {/* Bank Allocation Modal */}
             {showBankAllocationModal && selectedUserForAllocation && (
                 <div className="modal-overlay" onClick={() => setShowBankAllocationModal(false)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 className="modal-title">Allocate Banks to {selectedUserForAllocation.name}</h3>
-                            <button className="modal-close" onClick={() => setShowBankAllocationModal(false)}><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+                            <button className="modal-close" onClick={() => setShowBankAllocationModal(false)}>✕</button>
                         </div>
                         <div className="modal-body">
                             <p className="modal-description">Select Namavruksha Sankalpas to allocate:</p>
@@ -973,6 +1125,7 @@ const AdminDashboardPage = () => {
                 </div>
             )}
 
+            {/* Bulk Upload Modal */}
             {showBulkUploadModal && (
                 <div className="modal-overlay" onClick={() => setShowBulkUploadModal(false)}>
                     <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
@@ -981,12 +1134,13 @@ const AdminDashboardPage = () => {
                 </div>
             )}
 
+            {/* Edit Book Modal */}
             {showBookEditModal && (
                 <div className="modal-overlay" onClick={() => setShowBookEditModal(false)}>
                     <div className="modal" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
                             <h3 className="modal-title">Edit Book Title</h3>
-                            <button className="modal-close" onClick={() => setShowBookEditModal(false)}><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
+                            <button className="modal-close" onClick={() => setShowBookEditModal(false)}>✕</button>
                         </div>
                         <div className="modal-body">
                             <div className="form-group">
@@ -1005,7 +1159,6 @@ const AdminDashboardPage = () => {
                                     loadData();
                                 } catch (err) {
                                     error('Failed to update book title');
-                                    console.error(err);
                                 }
                             }}>Save Changes</button>
                         </div>

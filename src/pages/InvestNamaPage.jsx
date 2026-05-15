@@ -12,7 +12,7 @@ const InvestNamaPage = () => {
     const navigate = useNavigate();
 
     const [counts, setCounts] = useState({});
-    const [minutes, setMinutes] = useState({}); // Track minutes separately
+    const [minutes, setMinutes] = useState({});
     const [loading, setLoading] = useState(false);
     const [todayStats, setTodayStats] = useState({ today: 0, totalDevotees: 0 });
     const [startDate, setStartDate] = useState('');
@@ -20,22 +20,19 @@ const InvestNamaPage = () => {
     const [submissionSuccess, setSubmissionSuccess] = useState(null);
     const [showConfirmDialog, setShowConfirmDialog] = useState(false);
     const [devoteeCount, setDevoteeCount] = useState('');
-    const [showNamaInfoFor, setShowNamaInfoFor] = useState(null); // Track which account tooltip to show
+    const [showNamaInfoFor, setShowNamaInfoFor] = useState(null);
 
     useEffect(() => {
         if (!user) {
             navigate('/login');
             return;
         }
-        // Initialize counts and minutes for each account
         const initialCounts = {};
         const initialMinutes = {};
         linkedAccounts.forEach(acc => {
             initialCounts[acc.id] = 0;
             initialMinutes[acc.id] = '';
         });
-        setCounts(initialCounts);
-        setMinutes(initialMinutes);
         setCounts(initialCounts);
         setMinutes(initialMinutes);
         loadTodayStats();
@@ -50,20 +47,14 @@ const InvestNamaPage = () => {
         }
     };
 
-
-
     const handleCountChange = (accountId, value) => {
         const numValue = Math.max(0, parseInt(value) || 0);
         setCounts(prev => ({ ...prev, [accountId]: numValue }));
-        // Clear minutes when count is entered directly (one-way: Minutes -> Count only)
         setMinutes(prev => ({ ...prev, [accountId]: '' }));
     };
 
     const handleMinutesChange = (accountId, value) => {
-        // Store minutes value
         setMinutes(prev => ({ ...prev, [accountId]: value }));
-        // Calculate count from minutes (20 namas per minute)
-        // 1 min = 20 Namas (chanting the mantra 5 times, 4 Namas each = 20)
         const mins = parseFloat(value) || 0;
         const calculatedCount = Math.round(mins * 20);
         setCounts(prev => ({ ...prev, [accountId]: calculatedCount }));
@@ -74,16 +65,37 @@ const InvestNamaPage = () => {
             ...prev,
             [accountId]: (prev[accountId] || 0) + amount
         }));
-        // Clear minutes when using quick add (direct count input)
         setMinutes(prev => ({ ...prev, [accountId]: '' }));
     };
 
-    const getTotalCount = () => {
+    // Raw total (before devotee multiplication) — used per-sankalpa in confirm dialog
+    const getRawTotal = () => {
         return Object.values(counts).reduce((sum, count) => sum + (count || 0), 0);
+    };
+
+    // Effective multiplier
+    const getMultiplier = () => {
+        const d = parseInt(devoteeCount);
+        return (!isNaN(d) && d > 1) ? d : 1;
+    };
+
+    // Session total shown to user = raw × multiplier
+    const getDisplayTotal = () => {
+        return getRawTotal() * getMultiplier();
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // CHANGE 1: Dates are now mandatory
+        if (!startDate) {
+            error('Please select a Start Date.');
+            return;
+        }
+        if (!endDate) {
+            error('Please select an End Date.');
+            return;
+        }
 
         const entries = Object.entries(counts)
             .filter(([_, count]) => count > 0)
@@ -98,16 +110,18 @@ const InvestNamaPage = () => {
             return;
         }
 
-        // Show confirmation dialog
         setShowConfirmDialog(true);
     };
 
     const confirmSubmission = async () => {
+        const multiplier = getMultiplier();
+
+        // CHANGE 2: Each entry count multiplied by devoteeCount before submission
         const entries = Object.entries(counts)
             .filter(([_, count]) => count > 0)
             .map(([accountId, count]) => ({
                 accountId,
-                count,
+                count: count * multiplier,   // ← multiplication happens here
                 sourceType: 'manual'
             }));
 
@@ -116,11 +130,11 @@ const InvestNamaPage = () => {
 
         try {
             await submitMultipleNamaEntries(user.$id, entries, 'manual', startDate, endDate, devoteeCount);
-            const total = getTotalCount();
-            success(`${total} Namas offered successfully! Hari Om`);
-            setSubmissionSuccess(`Successfully offered ${total} Namas! Hari Om.`);
+            const total = getDisplayTotal();
+            success(`${total.toLocaleString()} Namas offered successfully! Hari Om`);
+            setSubmissionSuccess(`Successfully offered ${total.toLocaleString()} Namas! Hari Om.`);
 
-            // Reset counts and minutes
+            // Reset
             const resetCounts = {};
             const resetMinutes = {};
             linkedAccounts.forEach(acc => {
@@ -130,12 +144,10 @@ const InvestNamaPage = () => {
             setCounts(resetCounts);
             setMinutes(resetMinutes);
             setStartDate('');
-            setStartDate('');
             setEndDate('');
             setDevoteeCount('');
             loadTodayStats();
 
-            // Clear success message after 5 seconds
             setTimeout(() => setSubmissionSuccess(null), 5000);
         } catch (err) {
             error('Failed to submit. Please try again.');
@@ -145,6 +157,8 @@ const InvestNamaPage = () => {
     };
 
     if (!user) return null;
+
+    const multiplier = getMultiplier();
 
     return (
         <div className="invest-page page-enter">
@@ -197,7 +211,6 @@ const InvestNamaPage = () => {
 
                     {/* Stats Grid */}
                     <div className="stats-grid">
-                        {/* Total Devotees */}
                         <div className="devotees-summary">
                             <div className="summary-content">
                                 <span className="summary-label">Total Devotees</span>
@@ -212,8 +225,6 @@ const InvestNamaPage = () => {
                                 </svg>
                             </div>
                         </div>
-
-                        {/* Today's Summary */}
                         <div className="today-summary">
                             <div className="summary-content">
                                 <span className="summary-label">Today's Total</span>
@@ -241,37 +252,44 @@ const InvestNamaPage = () => {
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="invest-form">
-                            {/* Date Range Selection */}
+
+                            {/* CHANGE 1: Offering Period — mandatory, no "Optional" text */}
                             <div className="date-selection-section">
-                                <h3 className="section-title">Offering Period (Optional)</h3>
+                                <h3 className="section-title">Offering Period</h3>
                                 <div className="date-inputs">
                                     <div className="form-group">
-                                        <label htmlFor="startDate">Start Date</label>
+                                        <label htmlFor="startDate">
+                                            Start Date <span style={{ color: '#ef4444' }}>*</span>
+                                        </label>
                                         <input
                                             type="date"
                                             id="startDate"
                                             value={startDate}
                                             onChange={(e) => setStartDate(e.target.value)}
                                             className="form-input"
+                                            required
                                         />
                                     </div>
                                     <div className="form-group">
-                                        <label htmlFor="endDate">End Date</label>
+                                        <label htmlFor="endDate">
+                                            End Date <span style={{ color: '#ef4444' }}>*</span>
+                                        </label>
                                         <input
                                             type="date"
                                             id="endDate"
                                             value={endDate}
                                             onChange={(e) => setEndDate(e.target.value)}
                                             className="form-input"
+                                            required
                                         />
                                     </div>
                                 </div>
-                                <p className="date-hint">Select dates if you are offering for a specific period.</p>
+                                <p className="date-hint">Select the date(s) for this offering. For a single day, set both dates the same.</p>
                             </div>
 
-                            {/* Devotee Count Section */}
+                            {/* CHANGE 2: Number of Devotees — no "Optional", live multiplier hint */}
                             <div className="devotee-count-section" style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--gray-100)' }}>
-                                <h3 className="section-title">Number of Devotees (Optional)</h3>
+                                <h3 className="section-title">Number of Devotees</h3>
                                 <div className="form-group" style={{ maxWidth: '200px' }}>
                                     <label htmlFor="devoteeCount">Devotees Count</label>
                                     <input
@@ -283,40 +301,47 @@ const InvestNamaPage = () => {
                                         placeholder="1"
                                         min="1"
                                     />
-                                    <p className="date-hint">How many devotees chanted together?</p>
+                                    <p className="date-hint">
+                                        How many devotees chanted together?
+                                        {/* CHANGE 3: Live multiplier hint */}
+                                        {multiplier > 1 && (
+                                            <span style={{
+                                                display: 'block',
+                                                marginTop: '4px',
+                                                color: '#FF9933',
+                                                fontWeight: '600'
+                                            }}>
+                                                ✕ {multiplier} devotees — Session Total will be multiplied
+                                            </span>
+                                        )}
+                                    </p>
                                 </div>
                             </div>
 
+                            {/* Sankalpa entries */}
                             <div className="accounts-form">
                                 {linkedAccounts.map(account => (
                                     <div key={account.id} className="account-entry">
                                         <div className="account-info">
                                             <span className="account-name">{account.name}</span>
+                                            {/* CHANGE 3: Show per-account multiplied count live */}
+                                            {multiplier > 1 && counts[account.id] > 0 && (
+                                                <span style={{
+                                                    marginLeft: '12px',
+                                                    fontSize: '0.82rem',
+                                                    color: '#FF9933',
+                                                    fontWeight: '600'
+                                                }}>
+                                                    {counts[account.id]} × {multiplier} = {(counts[account.id] * multiplier).toLocaleString()} Namas
+                                                </span>
+                                            )}
                                         </div>
 
                                         <div className="count-controls">
                                             <div className="quick-buttons">
-                                                <button
-                                                    type="button"
-                                                    className="quick-btn"
-                                                    onClick={() => handleQuickAdd(account.id, 108)}
-                                                >
-                                                    +108
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="quick-btn"
-                                                    onClick={() => handleQuickAdd(account.id, 54)}
-                                                >
-                                                    +54
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    className="quick-btn"
-                                                    onClick={() => handleQuickAdd(account.id, 27)}
-                                                >
-                                                    +27
-                                                </button>
+                                                <button type="button" className="quick-btn" onClick={() => handleQuickAdd(account.id, 108)}>+108</button>
+                                                <button type="button" className="quick-btn" onClick={() => handleQuickAdd(account.id, 54)}>+54</button>
+                                                <button type="button" className="quick-btn" onClick={() => handleQuickAdd(account.id, 27)}>+27</button>
                                             </div>
 
                                             <div className="inputs-row" style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
@@ -339,13 +364,7 @@ const InvestNamaPage = () => {
                                                         Minutes (Approx)
                                                         <span
                                                             className="info-icon"
-                                                            style={{
-                                                                cursor: 'pointer',
-                                                                fontSize: '1rem',
-                                                                color: '#FF9933',
-                                                                position: 'relative',
-                                                                fontWeight: 'bold'
-                                                            }}
+                                                            style={{ cursor: 'pointer', fontSize: '1rem', color: '#FF9933', position: 'relative', fontWeight: 'bold' }}
                                                             onMouseEnter={() => setShowNamaInfoFor(account.id)}
                                                             onMouseLeave={() => setShowNamaInfoFor(null)}
                                                             onClick={() => setShowNamaInfoFor(showNamaInfoFor === account.id ? null : account.id)}
@@ -422,16 +441,23 @@ const InvestNamaPage = () => {
                                 ))}
                             </div>
 
-                            {/* Total Display */}
+                            {/* Session Total — shows multiplied value */}
                             <div className="total-display">
-                                <span className="total-label">Session Total</span>
-                                <span className="total-value">{getTotalCount().toLocaleString()}</span>
+                                <span className="total-label">
+                                    Session Total
+                                    {multiplier > 1 && (
+                                        <span style={{ fontSize: '0.8rem', color: '#888', marginLeft: '8px', fontWeight: 'normal' }}>
+                                            ({getRawTotal().toLocaleString()} × {multiplier} devotees)
+                                        </span>
+                                    )}
+                                </span>
+                                <span className="total-value">{getDisplayTotal().toLocaleString()}</span>
                             </div>
 
                             <button
                                 type="submit"
                                 className="btn btn-primary btn-lg w-full"
-                                disabled={loading || getTotalCount() === 0}
+                                disabled={loading || getRawTotal() === 0}
                             >
                                 {loading ? (
                                     <>
@@ -477,33 +503,25 @@ const InvestNamaPage = () => {
                         background: 'white',
                         borderRadius: '16px',
                         padding: '24px',
-                        maxWidth: '400px',
+                        maxWidth: '420px',
                         width: '90%',
                         boxShadow: '0 10px 40px rgba(0, 0, 0, 0.2)',
                         animation: 'slideUp 0.3s ease'
                     }}>
-                        <h3 style={{
-                            fontSize: '1.25rem',
-                            color: 'var(--maroon, #8B0000)',
-                            marginBottom: '16px',
-                            textAlign: 'center'
-                        }}>
+                        <h3 style={{ fontSize: '1.25rem', color: 'var(--maroon, #8B0000)', marginBottom: '16px', textAlign: 'center' }}>
                             🙏 Confirm Your Offering
                         </h3>
 
-                        <div style={{
-                            background: 'var(--cream-light, #fdf8f3)',
-                            borderRadius: '8px',
-                            padding: '16px',
-                            marginBottom: '16px'
-                        }}>
+                        <div style={{ background: 'var(--cream-light, #fdf8f3)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
                             <p style={{ marginBottom: '12px', fontWeight: '600', color: 'var(--gray-700, #374151)' }}>
                                 You are offering:
                             </p>
+
                             {Object.entries(counts)
                                 .filter(([_, count]) => count > 0)
                                 .map(([accountId, count]) => {
                                     const account = linkedAccounts.find(a => a.id === accountId);
+                                    const effectiveCount = count * multiplier;
                                     return (
                                         <div key={accountId} style={{
                                             display: 'flex',
@@ -514,10 +532,18 @@ const InvestNamaPage = () => {
                                             borderRadius: '6px'
                                         }}>
                                             <span>{account?.name || 'Account'}</span>
-                                            <strong style={{ color: 'var(--saffron, #FF9933)' }}>{count.toLocaleString()} Namas</strong>
+                                            <strong style={{ color: 'var(--saffron, #FF9933)' }}>
+                                                {effectiveCount.toLocaleString()} Namas
+                                                {multiplier > 1 && (
+                                                    <span style={{ fontSize: '0.75rem', color: '#888', marginLeft: '6px' }}>
+                                                        ({count} × {multiplier})
+                                                    </span>
+                                                )}
+                                            </strong>
                                         </div>
                                     );
                                 })}
+
                             <div style={{
                                 borderTop: '2px solid var(--saffron, #FF9933)',
                                 marginTop: '8px',
@@ -527,44 +553,47 @@ const InvestNamaPage = () => {
                                 fontWeight: 'bold'
                             }}>
                                 <span>Total</span>
-                                <span style={{ color: 'var(--maroon, #8B0000)' }}>{getTotalCount().toLocaleString()} Namas</span>
+                                <span style={{ color: 'var(--maroon, #8B0000)' }}>{getDisplayTotal().toLocaleString()} Namas</span>
                             </div>
-                            {(startDate || endDate) && (
-                                <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--gray-500, #6b7280)' }}>
-                                    {startDate && <span>From: {startDate}</span>}
-                                    {startDate && endDate && ' • '}
-                                    {endDate && <span>To: {endDate}</span>}
+
+                            {multiplier > 1 && (
+                                <div style={{ marginTop: '8px', fontSize: '0.82rem', color: '#666', fontStyle: 'italic' }}>
+                                    👥 {multiplier} devotees chanted together
                                 </div>
                             )}
+
+                            <div style={{ marginTop: '12px', fontSize: '0.85rem', color: 'var(--gray-500, #6b7280)' }}>
+                                {startDate && <span>From: {startDate}</span>}
+                                {startDate && endDate && ' • '}
+                                {endDate && <span>To: {endDate}</span>}
+                            </div>
+                        </div>
+
+                        {/* Sincere declaration */}
+                        <div style={{
+                            background: '#fffbe8',
+                            border: '1px solid #e8d080',
+                            borderRadius: '8px',
+                            padding: '10px 14px',
+                            marginBottom: '16px',
+                            fontSize: '0.82rem',
+                            color: '#5a3a1a',
+                            fontStyle: 'italic',
+                            lineHeight: '1.6'
+                        }}>
+                            "I sincerely confirm that I have entered my Nama daily, without any backward or forward entries, and stayed true to Bhagawan in this Nama Sadhana."
                         </div>
 
                         <div style={{ display: 'flex', gap: '12px' }}>
                             <button
                                 onClick={() => setShowConfirmDialog(false)}
-                                style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    border: '1px solid #ddd',
-                                    background: 'white',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontWeight: '500'
-                                }}
+                                style={{ flex: 1, padding: '12px', border: '1px solid #ddd', background: 'white', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={confirmSubmission}
-                                style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    border: 'none',
-                                    background: 'var(--saffron, #FF9933)',
-                                    color: 'white',
-                                    borderRadius: '8px',
-                                    cursor: 'pointer',
-                                    fontWeight: '600'
-                                }}
+                                style={{ flex: 1, padding: '12px', border: 'none', background: 'var(--saffron, #FF9933)', color: 'white', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
                             >
                                 Confirm Offering
                             </button>
@@ -577,5 +606,3 @@ const InvestNamaPage = () => {
 };
 
 export default InvestNamaPage;
-
-
