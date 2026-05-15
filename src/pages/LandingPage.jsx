@@ -17,38 +17,17 @@ const LandingPage = () => {
 
     useEffect(() => {
         const fetchData = async () => {
-
             const [accountsResult, namaResult, usersResult] = await Promise.allSettled([
-
-                // 1. Active Accounts Count
-                databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.NAMA_ACCOUNTS,
-                    [Query.equal('is_active', true), Query.limit(100)]
-                ),
-
-                // 2. Nama Entries — fetch all with realistic limit, no Query.sum
-                databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.NAMA_ENTRIES,
-                    [Query.limit(2000)]
-                ),
-
-                // 3. User Count — limit(1) just to read .total
-                databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.USERS,
-                    [Query.limit(1)]
-                ),
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true), Query.limit(100)]),
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1)]),
             ]);
 
             const accountCount = accountsResult.status === 'fulfilled'
-                ? (accountsResult.value.total || accountsResult.value.documents.length)
-                : 0;
+                ? (accountsResult.value.total || accountsResult.value.documents.length) : 0;
 
             let totalNama = 0;
             let totalDevoteesSum = 0;
-
             if (namaResult.status === 'fulfilled') {
                 const docs = namaResult.value.documents || [];
                 totalNama = docs.reduce((sum, e) => sum + (e.count || 0), 0);
@@ -58,9 +37,7 @@ const LandingPage = () => {
                 }, 0);
             }
 
-            const userCount = usersResult.status === 'fulfilled'
-                ? (usersResult.value.total || 0)
-                : 0;
+            const userCount = usersResult.status === 'fulfilled' ? (usersResult.value.total || 0) : 0;
 
             setLiveStats({
                 totalRegisteredUsers: userCount,
@@ -70,7 +47,6 @@ const LandingPage = () => {
             });
             setLoading(false);
         };
-
         fetchData();
     }, []);
 
@@ -84,7 +60,6 @@ const LandingPage = () => {
 
     return (
         <div className="landing-page">
-            {/* Animated Background */}
             <div className="animated-bg">
                 <div className="floating-om om-1">ॐ</div>
                 <div className="floating-om om-2">ॐ</div>
@@ -92,15 +67,14 @@ const LandingPage = () => {
             </div>
 
             <div className="landing-container">
-                {/* Hero Section — split layout */}
+
+                {/* ── Hero: split left/right ── */}
                 <header className="hero-section fade-in">
                     <div className="hero-split">
 
-                        {/* LEFT: Yogi photo + site identity */}
+                        {/* LEFT */}
                         <div className="hero-left">
-                            <div className="logo-container">
-                                <img src={yogiImage} alt="Bhagawan Yogi Ramsuratkumar" className="logo-image yogi-photo" />
-                            </div>
+                            <img src={yogiImage} alt="Bhagawan Yogi Ramsuratkumar" className="yogi-photo" />
                             <h1 className="hero-title">Namavruksha</h1>
                             <p className="hero-tagline">The Divine Tree of the Holy Name</p>
                             <p className="hero-description">
@@ -110,7 +84,7 @@ const LandingPage = () => {
                             <div className="greeting-text">🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏</div>
                         </div>
 
-                        {/* RIGHT: June Challenge panel */}
+                        {/* RIGHT */}
                         <div className="hero-right">
                             <div className="challenge-panel">
                                 <div className="challenge-header">
@@ -154,7 +128,7 @@ const LandingPage = () => {
                     </div>
                 </header>
 
-                {/* Question Cards Section */}
+                {/* FAQ Cards */}
                 <section className="faq-cards-section fade-in-delay-1">
                     <div className="faq-cards">
                         <div className="faq-card">
@@ -200,7 +174,6 @@ const LandingPage = () => {
                             <h3>Join Sankalpa</h3>
                             <p>Begin your Nama journey</p>
                         </Link>
-
                         {authLoading ? (
                             <div className="action-card loading">
                                 <span className="action-icon">⏳</span>
@@ -219,7 +192,6 @@ const LandingPage = () => {
                                 <p>Continue your offering</p>
                             </Link>
                         )}
-
                         <Link to="/reports/public" className="action-card">
                             <span className="action-icon">📊</span>
                             <h3>Reports</h3>
@@ -246,7 +218,7 @@ const LandingPage = () => {
                     <Link to="/prayers" className="media-link">🙏 Prayers</Link>
                 </section>
 
-                {/* Divyavani Sub Domain Links */}
+                {/* Divyavani Links */}
                 <section className="media-compact" style={{ marginTop: '0.5rem' }}>
                     <a href="https://divyavanienglish.namavruksha.org" target="_blank" rel="noopener noreferrer" className="media-link" style={{ background: 'linear-gradient(135deg, #FF9933, #E88800)', color: 'white' }}>
                         🙏 Divyavani English
@@ -258,16 +230,14 @@ const LandingPage = () => {
 
                 {/* Footer */}
                 <footer className="landing-footer">
-                    <div className="footer-logo">
-                        🌳 <strong>Namavruksha</strong>
-                    </div>
+                    <div className="footer-logo">🌳 <strong>Namavruksha</strong></div>
                     <p className="footer-tagline">Rooted in Nama. Growing in Faith. Bearing Fruits Beyond Life.</p>
-
                     <div className="admin-links">
                         <Link to="/moderator/login">Moderator</Link>
                         <Link to="/admin/login">Admin</Link>
                     </div>
                 </footer>
+
             </div>
         </div>
     );
