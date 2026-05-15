@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
-import logoImage from '../assets/namavruksha-logo.png';
+import yogiImage from '../assets/YogiPic01.jpg';
 import './LandingPage.css';
 
 const LandingPage = () => {
@@ -92,18 +92,66 @@ const LandingPage = () => {
             </div>
 
             <div className="landing-container">
-                {/* Hero Section */}
+                {/* Hero Section — split layout */}
                 <header className="hero-section fade-in">
-                    <div className="logo-container">
-                        <img src={logoImage} alt="Namavruksha - The Divine Tree" className="logo-image" />
+                    <div className="hero-split">
+
+                        {/* LEFT: Yogi photo + site identity */}
+                        <div className="hero-left">
+                            <div className="logo-container">
+                                <img src={yogiImage} alt="Bhagawan Yogi Ramsuratkumar" className="logo-image yogi-photo" />
+                            </div>
+                            <h1 className="hero-title">Namavruksha</h1>
+                            <p className="hero-tagline">The Divine Tree of the Holy Name</p>
+                            <p className="hero-description">
+                                <span className="highlight-text">Namavruksha</span> is a humble digital space for devotees to chant and count Nama with sincerity,
+                                and offer it together as a collective spiritual <span className="highlight-text">sankalpa</span>.
+                            </p>
+                            <div className="greeting-text">🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏</div>
+                        </div>
+
+                        {/* RIGHT: June Challenge panel */}
+                        <div className="hero-right">
+                            <div className="challenge-panel">
+                                <div className="challenge-header">
+                                    <span className="challenge-live-tag">June 2025 · Live now</span>
+                                    <h2 className="challenge-title">June 1008 Nama Sadhana</h2>
+                                    <p className="challenge-subtitle">June Consistency Daily Chanting Challenge</p>
+                                </div>
+                                <div className="challenge-body">
+                                    <p className="challenge-intro">
+                                        Not a competition … a collective offering through Nama. Chant together and grow a global NamaVruksha for Bhagawan Yogi Ramsuratkumar.
+                                    </p>
+                                    <div className="challenge-info-row">
+                                        <div className="challenge-info-box">
+                                            <span className="challenge-info-label">Daily target</span>
+                                            <span className="challenge-info-val big">1008 Namas</span>
+                                            <span className="challenge-info-note">3× Yogi Ramsuratkumar + Jaya Guru Raya = 4 Namas</span>
+                                        </div>
+                                        <div className="challenge-info-box">
+                                            <span className="challenge-info-label">Completion blessing</span>
+                                            <span className="challenge-info-val">First 3 devotees receive <em>Saranagatham</em> Annual Subscription</span>
+                                        </div>
+                                    </div>
+                                    <div className="challenge-steps">
+                                        <p className="challenge-steps-label">How to join</p>
+                                        <div className="challenge-step">
+                                            <span className="challenge-step-num">1</span>
+                                            <span>Visit namavruksha.org and register with the <em>Sankalpa – 1008 Daily Chanting</em></span>
+                                        </div>
+                                        <div className="challenge-step">
+                                            <span className="challenge-step-num">2</span>
+                                            <span>Login → Dashboard → Invest Nama → set today as start &amp; end date → submit count</span>
+                                        </div>
+                                    </div>
+                                    <div className="challenge-footer-note">
+                                        Simple. Sincere. Powerful. Let Nama guide us.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
-                    <h1 className="hero-title">Namavruksha</h1>
-                    <p className="hero-tagline">The Divine Tree of the Holy Name</p>
-                    <p className="hero-description">
-                        <span className="highlight-text">Namavruksha</span> is a humble digital space for devotees to chant and count Nama with sincerity,
-                        and offer it together as a collective spiritual <span className="highlight-text">sankalpa</span>.
-                    </p>
-                    <div className="greeting-text">🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏</div>
                 </header>
 
                 {/* Question Cards Section */}
