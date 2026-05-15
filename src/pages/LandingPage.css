@@ -54,60 +54,66 @@
     padding: 2rem 0 1.5rem;
 }
 
-/* The split row */
 .hero-split {
     display: flex;
     flex-direction: row;
-    gap: 2rem;
-    align-items: flex-start;
+    gap: 1.5rem;
+    align-items: stretch;        /* both columns same height */
     justify-content: center;
     width: 100%;
     text-align: left;
 }
 
-/* LEFT column */
+/* LEFT column — wider */
 .hero-left {
-    flex: 0 0 240px;
+    flex: 0 0 290px;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
     gap: 0.6rem;
+    background: white;
+    border-radius: 16px;
+    border: 1px solid #f0e6d9;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+    padding: 1.25rem 1rem 1.25rem;
 }
 
 /* Yogi photo */
 .yogi-photo {
     width: 220px;
-    height: 240px;
+    height: 230px;
     object-fit: cover;
     object-position: top center;
-    border-radius: 16px;
+    border-radius: 14px;
     border: 3px solid #c8a060;
     box-shadow: 0 6px 24px rgba(139, 90, 0, 0.22);
     display: block;
 }
 
-/* RIGHT column */
+/* RIGHT column — fills remaining space */
 .hero-right {
     flex: 1;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-/* Keep original logo-container harmless (unused now but kept to avoid any stale ref errors) */
+/* hide old logo refs */
 .logo-container { display: none; }
-.logo-image { display: none; }
+.logo-image      { display: none; }
 
-/* Hero text — scoped inside hero-left */
+/* Hero text inside left */
 .hero-left .hero-title {
-    font-size: 2rem;
+    font-size: 1.9rem;
     color: #8B0000;
     font-weight: 700;
-    margin: 0.25rem 0 0;
+    margin: 0.2rem 0 0;
     font-family: 'Georgia', serif;
 }
 
 .hero-left .hero-tagline {
-    font-size: 1rem;
+    font-size: 0.95rem;
     color: #666;
     font-style: italic;
     margin: 0;
@@ -129,24 +135,27 @@
 }
 
 .hero-left .greeting-text {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     color: #8B0000;
     font-weight: 600;
-    padding: 0.65rem 1rem;
-    background: linear-gradient(135deg, rgba(255, 153, 51, 0.12), rgba(255, 102, 0, 0.08));
+    padding: 0.6rem 0.9rem;
+    background: linear-gradient(135deg, rgba(255,153,51,0.12), rgba(255,102,0,0.08));
     border-radius: 14px;
     display: inline-block;
-    border: 1px solid rgba(255, 153, 51, 0.2);
+    border: 1px solid rgba(255,153,51,0.2);
+    margin-top: auto;           /* push to bottom of left column */
 }
 
 /* ================================
-   Challenge Panel (right column)
+   Challenge Panel
    ================================ */
 .challenge-panel {
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid #d4a84b;
-    height: 100%;
+    display: flex;
+    flex-direction: column;
+    flex: 1;                     /* stretch to full height of hero-right */
 }
 
 .challenge-header {
@@ -155,17 +164,18 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex-shrink: 0;
 }
 
 .challenge-live-tag {
     display: inline-block;
-    background: rgba(255, 220, 140, 0.2);
-    border: 1px solid rgba(255, 200, 100, 0.4);
+    background: rgba(255,220,140,0.2);
+    border: 1px solid rgba(255,200,100,0.4);
     border-radius: 20px;
     padding: 3px 10px;
     font-size: 11px;
     color: #ffd080;
-    font-weight: 600;
+    font-weight: 700;
     letter-spacing: 0.5px;
     align-self: flex-start;
     margin-bottom: 4px;
@@ -173,7 +183,7 @@
 
 .challenge-title {
     margin: 0;
-    font-size: 1.2rem;
+    font-size: 1.25rem;
     font-weight: 700;
     color: #fff;
     font-family: Georgia, serif;
@@ -181,8 +191,9 @@
 
 .challenge-subtitle {
     margin: 0;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     color: #f5c8a0;
+    font-weight: 500;
 }
 
 .challenge-body {
@@ -191,14 +202,16 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    flex: 1;
 }
 
 .challenge-intro {
     margin: 0;
-    font-size: 0.83rem;
+    font-size: 0.9rem;
     color: #5a3a1a;
     font-style: italic;
-    line-height: 1.55;
+    line-height: 1.6;
+    font-weight: 500;
 }
 
 .challenge-info-row {
@@ -210,70 +223,101 @@
     flex: 1;
     background: #fff;
     border: 1px solid #e8c880;
-    border-radius: 8px;
-    padding: 10px 12px;
+    border-radius: 10px;
+    padding: 12px 14px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 6px;
 }
 
 .challenge-info-label {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    color: #8b5e00;
+    color: #8B0000;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
+    font-family: Georgia, serif;
 }
 
 .challenge-info-val {
-    font-size: 0.82rem;
+    font-size: 0.88rem;
     color: #3a2000;
-    line-height: 1.45;
+    line-height: 1.55;
+    font-weight: 500;
 }
 
-.challenge-info-val.big {
-    font-size: 1.15rem;
+.challenge-info-val strong {
+    color: #8B0000;
     font-weight: 700;
-    color: #7a1a1a;
 }
 
-.challenge-info-note {
-    font-size: 0.72rem;
-    color: #7a5a20;
+/* Chanting 4-line display */
+.chant-lines {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 4px;
 }
 
+.chant-group {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-left: 3px solid #c8a060;
+    padding-left: 8px;
+}
+
+.chant-name {
+    font-size: 0.85rem;
+    color: #5a3010;
+    font-weight: 600;
+    font-family: Georgia, serif;
+    line-height: 1.6;
+}
+
+.chant-equals {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #8B0000;
+    font-family: Georgia, serif;
+    white-space: nowrap;
+}
+
+/* Steps */
 .challenge-steps {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;
 }
 
 .challenge-steps-label {
     margin: 0;
     font-size: 11px;
     font-weight: 700;
-    color: #7a5a20;
+    color: #8B0000;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.6px;
+    font-family: Georgia, serif;
 }
 
 .challenge-step {
     display: flex;
     align-items: flex-start;
     gap: 8px;
-    font-size: 0.8rem;
+    font-size: 0.88rem;
     color: #3a2000;
-    line-height: 1.5;
+    line-height: 1.55;
+    font-weight: 500;
 }
 
 .challenge-step-num {
     flex-shrink: 0;
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
-    background: #7a1a1a;
+    background: #8B0000;
     color: #fff;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -281,15 +325,38 @@
     margin-top: 1px;
 }
 
-.challenge-footer-note {
-    font-size: 0.78rem;
-    color: #7a5a00;
+/* Sincere declaration */
+.challenge-sincere {
+    font-size: 0.82rem;
+    color: #5a3a1a;
     font-style: italic;
+    line-height: 1.6;
+    background: #fff8ec;
+    border-left: 3px solid #c8a060;
+    padding: 8px 12px;
+    border-radius: 0 8px 8px 0;
+    font-weight: 500;
+}
+
+.challenge-quote-mark {
+    font-size: 1.2rem;
+    color: #c8a060;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.challenge-footer-note {
+    font-size: 0.85rem;
+    color: #8B0000;
+    font-style: italic;
+    font-weight: 600;
     text-align: center;
     background: #fffbe8;
     border: 1px solid #e8d080;
-    border-radius: 6px;
-    padding: 6px 10px;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: Georgia, serif;
+    margin-top: auto;
 }
 
 /* ================================
@@ -305,7 +372,7 @@
     padding: 1rem;
     background: white;
     border-radius: 16px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
     border: 1px solid #f0e6d9;
 }
 
@@ -335,9 +402,7 @@
 /* ================================
    FAQ Cards
    ================================ */
-.faq-cards-section {
-    margin: 2rem 0;
-}
+.faq-cards-section { margin: 2rem 0; }
 
 .faq-cards {
     display: grid;
@@ -351,7 +416,7 @@
     padding: 1.75rem 1.5rem;
     text-align: center;
     border: 1px solid #f0e6d9;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
@@ -369,7 +434,7 @@
 
 .faq-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 35px rgba(255, 153, 51, 0.15);
+    box-shadow: 0 10px 35px rgba(255,153,51,0.15);
     border-color: #FF9933;
 }
 
@@ -411,12 +476,12 @@
     color: inherit;
     border: 1px solid #f0e6d9;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.04);
 }
 
 .action-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(255, 153, 51, 0.15);
+    box-shadow: 0 10px 30px rgba(255,153,51,0.15);
     border-color: #FF9933;
 }
 
@@ -455,7 +520,7 @@
     border-radius: 16px;
     padding: 1.5rem;
     margin: 2rem 0;
-    border: 2px dashed rgba(255, 153, 51, 0.3);
+    border: 2px dashed rgba(255,153,51,0.3);
 }
 
 .invitation-section h3 {
@@ -492,7 +557,7 @@
     font-size: 0.95rem;
     border: 1px solid #e0e0e0;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+    box-shadow: 0 2px 10px rgba(0,0,0,0.04);
 }
 
 .media-link:hover {
@@ -508,7 +573,7 @@
 .landing-footer {
     margin-top: 2rem;
     padding-top: 1.5rem;
-    border-top: 1px solid rgba(255, 153, 51, 0.2);
+    border-top: 1px solid rgba(255,153,51,0.2);
 }
 
 .footer-logo {
@@ -547,7 +612,7 @@
     letter-spacing: 0.5px;
     text-transform: uppercase;
     font-size: 0.75rem;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 .admin-links a:hover {
@@ -555,7 +620,7 @@
     background: linear-gradient(135deg, #8B0000, #A52A2A);
     border-color: #8B0000;
     transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(139, 0, 0, 0.25);
+    box-shadow: 0 4px 15px rgba(139,0,0,0.25);
 }
 
 /* ================================
@@ -565,27 +630,26 @@
     .landing-page { padding: 1rem; }
     .landing-container { max-width: 100%; }
 
-    /* Stack hero vertically on mobile */
     .hero-split {
         flex-direction: column;
-        align-items: center;
-        text-align: center;
+        align-items: stretch;
     }
 
     .hero-left {
         flex: none;
         width: 100%;
-        align-items: center;
     }
 
     .yogi-photo {
         width: 180px;
-        height: 200px;
+        height: 190px;
     }
 
     .hero-right { width: 100%; }
 
     .challenge-info-row { flex-direction: column; }
+
+    .chant-lines { flex-direction: column; align-items: flex-start; }
 
     .faq-cards { grid-template-columns: 1fr; }
     .action-cards { grid-template-columns: 1fr; }

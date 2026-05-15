@@ -96,28 +96,47 @@ const LandingPage = () => {
                                     <p className="challenge-intro">
                                         Not a competition … a collective offering through Nama. Chant together and grow a global NamaVruksha for Bhagawan Yogi Ramsuratkumar.
                                     </p>
+
                                     <div className="challenge-info-row">
+                                        {/* Chanting count guide */}
                                         <div className="challenge-info-box">
-                                            <span className="challenge-info-label">Daily target</span>
-                                            <span className="challenge-info-val big">1008 Namas</span>
-                                            <span className="challenge-info-note">3× Yogi Ramsuratkumar + Jaya Guru Raya = 4 Namas</span>
+                                            <span className="challenge-info-label">Chanting Count Guide</span>
+                                            <span className="challenge-info-val">Chant minimum <strong>1008 Namas</strong> daily.</span>
+                                            <div className="chant-lines">
+                                                <div className="chant-group">
+                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name">Jaya Guru Raya</span>
+                                                </div>
+                                                <span className="chant-equals">= 4 Namas</span>
+                                            </div>
                                         </div>
+                                        {/* Completion blessing */}
                                         <div className="challenge-info-box">
-                                            <span className="challenge-info-label">Completion blessing</span>
-                                            <span className="challenge-info-val">First 3 devotees receive <em>Saranagatham</em> Annual Subscription</span>
+                                            <span className="challenge-info-label">Completion Blessing</span>
+                                            <span className="challenge-info-val">First 3 devotees receive the Bhagawan Yogi Ramsuratkumar Ashram Monthly Magazine <strong><em>Saranagatham</em></strong> Annual Subscription <em>(within India)</em>.</span>
                                         </div>
                                     </div>
+
                                     <div className="challenge-steps">
-                                        <p className="challenge-steps-label">How to join</p>
+                                        <p className="challenge-steps-label">How to Join</p>
                                         <div className="challenge-step">
                                             <span className="challenge-step-num">1</span>
-                                            <span>Visit namavruksha.org and register with the <em>Sankalpa – 1008 Daily Chanting</em></span>
+                                            <span>Visit namavruksha.org · Register with the <em>Sankalpa – 1008 Daily Chanting</em></span>
                                         </div>
                                         <div className="challenge-step">
                                             <span className="challenge-step-num">2</span>
                                             <span>Login → Dashboard → Invest Nama → set today as start &amp; end date → submit count</span>
                                         </div>
                                     </div>
+
+                                    <div className="challenge-sincere">
+                                        <span className="challenge-quote-mark">"</span>
+                                        I sincerely confirm that I have entered my Nama daily, without any backward or forward entries, and stayed true to Bhagawan in this Nama Sadhana.
+                                        <span className="challenge-quote-mark">"</span>
+                                    </div>
+
                                     <div className="challenge-footer-note">
                                         Simple. Sincere. Powerful. Let Nama guide us.
                                     </div>
