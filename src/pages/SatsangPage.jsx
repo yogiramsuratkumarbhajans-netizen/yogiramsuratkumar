@@ -9,23 +9,33 @@ const toGMT = (istDateStr) => {
     const d = new Date(istDateStr);
     if (isNaN(d)) return '—';
     const gmt = new Date(d.getTime() - 5.5 * 60 * 60 * 1000);
-    return gmt.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' GMT';
+    // No year — just day month, time
+    return gmt.toLocaleString('en-GB', {
+        day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', hour12: false
+    }) + ' GMT';
 };
 
 const toEST = (istDateStr) => {
     const d = new Date(istDateStr);
     if (isNaN(d)) return '—';
     const est = new Date(d.getTime() - 10.5 * 60 * 60 * 1000);
-    return est.toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) + ' EST';
+    return est.toLocaleString('en-US', {
+        day: '2-digit', month: 'short',
+        hour: '2-digit', minute: '2-digit', hour12: true
+    }) + ' EST';
 };
 
 const formatIST = (istDateStr) => {
     const d = new Date(istDateStr);
     if (isNaN(d)) return '—';
-    return d.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) + ' IST';
+    // Day + Month on line 1, time on line 2
+    const datePart = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    const timePart = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' IST';
+    return { datePart, timePart };
 };
 
-// ── Free QR API — no npm needed ───────────────────────────────────
+// ── Free QR API ───────────────────────────────────────────────────
 const getQRUrl = (url) =>
     `https://api.qrserver.com/v1/create-qr-code/?size=200x200&margin=10&color=7a1a1a&bgcolor=fff9f0&data=${encodeURIComponent(url)}`;
 
@@ -38,7 +48,7 @@ const COUNTRY_FLAGS = {
 
 const STATUS_COLORS = {
     'Upcoming': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
-    'Live Now': { bg: '#fff3e0', color: '#e65100', border: '#ffb74d' },
+    'Live Now':  { bg: '#fff3e0', color: '#e65100', border: '#ffb74d' },
     'Completed': { bg: '#f5f5f5', color: '#757575', border: '#e0e0e0' }
 };
 
@@ -48,13 +58,7 @@ const QRModal = ({ url, eventName, onClose }) => (
         <div className="qr-modal" onClick={e => e.stopPropagation()}>
             <button className="qr-modal-close" onClick={onClose}>✕</button>
             <h3 className="qr-modal-title">🕉 {eventName}</h3>
-            <img
-                src={getQRUrl(url)}
-                alt="QR Code"
-                className="qr-canvas"
-                width={200}
-                height={200}
-            />
+            <img src={getQRUrl(url)} alt="QR Code" className="qr-canvas" width={200} height={200} />
             <p className="qr-modal-hint">Scan to join the session</p>
             <a href={url} target="_blank" rel="noopener noreferrer" className="qr-join-btn">Open Link →</a>
         </div>
@@ -65,9 +69,9 @@ const QRModal = ({ url, eventName, onClose }) => (
 const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
-    const year = currentMonth.getFullYear();
+    const year  = currentMonth.getFullYear();
     const month = currentMonth.getMonth();
-    const firstDay = new Date(year, month, 1).getDay();
+    const firstDay    = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const today = new Date();
 
@@ -83,10 +87,10 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
 
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
-    const goToday = () => setCurrentMonth(new Date());
+    const goToday   = () => setCurrentMonth(new Date());
 
     const monthName = currentMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
-    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
     return (
         <div className="satsang-calendar">
@@ -98,28 +102,38 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
                 </div>
                 <button className="cal-nav-btn" onClick={nextMonth}>›</button>
             </div>
+
+            {/* Day labels */}
             <div className="cal-grid">
                 {days.map(d => <div key={d} className="cal-day-label">{d}</div>)}
-                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
+
+                {/* Empty cells */}
+                {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`e-${i}`} className="cal-cell empty" />
+                ))}
+
+                {/* Day cells */}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
-                    const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
-                    const hasEvents = eventDates[day];
+                    const isToday    = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+                    const hasEvents  = eventDates[day];
                     const isSelected = selectedDate &&
-                        new Date(selectedDate).getDate() === day &&
-                        new Date(selectedDate).getMonth() === month &&
+                        new Date(selectedDate).getDate()     === day &&
+                        new Date(selectedDate).getMonth()    === month &&
                         new Date(selectedDate).getFullYear() === year;
+
                     return (
                         <div
                             key={day}
                             className={`cal-cell ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''} ${isSelected ? 'selected' : ''}`}
                             onClick={() => hasEvents && onDateClick(new Date(year, month, day))}
+                            title={hasEvents ? hasEvents.map(e => e.event_name).join(', ') : ''}
                         >
                             <span className="cal-day-num">{day}</span>
                             {hasEvents && (
                                 <div className="cal-dots">
                                     {hasEvents.slice(0, 3).map((ev, idx) => (
-                                        <span key={idx} className={`cal-dot status-${ev.status?.replace(' ', '-').toLowerCase()}`} title={ev.event_name} />
+                                        <span key={idx} className={`cal-dot status-${ev.status?.replace(' ','-').toLowerCase()}`} />
                                     ))}
                                 </div>
                             )}
@@ -127,6 +141,7 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
                     );
                 })}
             </div>
+
             <div className="cal-legend">
                 <span className="legend-item"><span className="cal-dot status-upcoming" />Upcoming</span>
                 <span className="legend-item"><span className="cal-dot status-live-now" />Live Now</span>
@@ -139,16 +154,16 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
 // ── Main Page ─────────────────────────────────────────────────────
 const SatsangPage = () => {
     const { user } = useAuth();
-    const [events, setEvents] = useState([]);
-    const [loading, setLoading] = useState(true);
+    const [events,       setEvents]       = useState([]);
+    const [loading,      setLoading]      = useState(true);
     const [selectedDate, setSelectedDate] = useState(null);
-    const [qrModal, setQrModal] = useState(null);
+    const [qrModal,      setQrModal]      = useState(null);
 
-    const [filterCountry, setFilterCountry] = useState('');
+    const [filterCountry,   setFilterCountry]   = useState('');
     const [filterFrequency, setFilterFrequency] = useState('');
-    const [filterStatus, setFilterStatus] = useState('');
-    const [filterPlatform, setFilterPlatform] = useState('');
-    const [sortBy, setSortBy] = useState('date_asc');
+    const [filterStatus,    setFilterStatus]    = useState('');
+    const [filterPlatform,  setFilterPlatform]  = useState('');
+    const [sortBy,          setSortBy]          = useState('date_asc');
 
     const tableRef = useRef(null);
 
@@ -157,16 +172,12 @@ const SatsangPage = () => {
     const loadEvents = async () => {
         try {
             const res = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTIONS.SATSANG_EVENTS,
+                DATABASE_ID, COLLECTIONS.SATSANG_EVENTS,
                 [Query.equal('is_active', true), Query.orderAsc('event_datetime'), Query.limit(100)]
             );
             setEvents(res.documents.map(d => ({ ...d, id: d.$id })));
-        } catch (err) {
-            console.error('Error loading satsang events:', err);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { console.error(err); }
+        finally { setLoading(false); }
     };
 
     const handleDateClick = (date) => {
@@ -183,29 +194,29 @@ const SatsangPage = () => {
     const filteredEvents = events
         .filter(ev => {
             if (selectedDate) {
-                const evDate = new Date(ev.event_datetime);
-                const sel = new Date(selectedDate);
-                if (evDate.getDate() !== sel.getDate() || evDate.getMonth() !== sel.getMonth() || evDate.getFullYear() !== sel.getFullYear()) return false;
+                const d = new Date(ev.event_datetime), s = new Date(selectedDate);
+                if (d.getDate() !== s.getDate() || d.getMonth() !== s.getMonth() || d.getFullYear() !== s.getFullYear()) return false;
             }
-            if (filterCountry && ev.country !== filterCountry) return false;
-            if (filterFrequency && ev.frequency !== filterFrequency) return false;
-            if (filterStatus && ev.status !== filterStatus) return false;
-            if (filterPlatform && ev.platform !== filterPlatform) return false;
+            if (filterCountry   && ev.country   !== filterCountry)   return false;
+            if (filterFrequency && ev.frequency  !== filterFrequency) return false;
+            if (filterStatus    && ev.status     !== filterStatus)    return false;
+            if (filterPlatform  && ev.platform   !== filterPlatform)  return false;
             return true;
         })
         .sort((a, b) => {
-            if (sortBy === 'date_asc') return new Date(a.event_datetime) - new Date(b.event_datetime);
+            if (sortBy === 'date_asc')  return new Date(a.event_datetime) - new Date(b.event_datetime);
             if (sortBy === 'date_desc') return new Date(b.event_datetime) - new Date(a.event_datetime);
-            if (sortBy === 'country') return a.country.localeCompare(b.country);
-            if (sortBy === 'status') return a.status.localeCompare(b.status);
+            if (sortBy === 'country')   return a.country.localeCompare(b.country);
+            if (sortBy === 'status')    return a.status.localeCompare(b.status);
             return 0;
         });
 
-    const uniqueCountries = [...new Set(events.map(e => e.country))].sort();
-    const uniquePlatforms = [...new Set(events.map(e => e.platform))].sort();
+    const uniqueCountries  = [...new Set(events.map(e => e.country))].sort();
+    const uniquePlatforms  = [...new Set(events.map(e => e.platform))].sort();
 
     return (
         <div className="satsang-page">
+            {/* Header */}
             <header className="satsang-header">
                 <div className="satsang-header-inner">
                     <Link to="/" className="satsang-back">← Home</Link>
@@ -219,18 +230,17 @@ const SatsangPage = () => {
 
             <div className="satsang-container">
 
-                {/* Section 1: Calendar */}
+                {/* Section 1 — Calendar */}
                 <section className="satsang-section">
                     <h2 className="satsang-section-title">📅 Event Calendar</h2>
                     <p className="satsang-section-sub">Click on a highlighted date to filter events for that day</p>
-                    {loading ? (
-                        <div className="satsang-loader"><span className="loader" /><p>Loading events...</p></div>
-                    ) : (
-                        <SatsangCalendar events={events} onDateClick={handleDateClick} selectedDate={selectedDate} />
-                    )}
+                    {loading
+                        ? <div className="satsang-loader"><span className="loader" /><p>Loading events...</p></div>
+                        : <SatsangCalendar events={events} onDateClick={handleDateClick} selectedDate={selectedDate} />
+                    }
                 </section>
 
-                {/* Section 2: Events Table */}
+                {/* Section 2 — Events Table */}
                 <section className="satsang-section" ref={tableRef}>
                     <div className="satsang-table-header">
                         <h2 className="satsang-section-title">
@@ -248,21 +258,21 @@ const SatsangPage = () => {
                             <label>Country</label>
                             <select value={filterCountry} onChange={e => setFilterCountry(e.target.value)}>
                                 <option value="">All Countries</option>
-                                {uniqueCountries.map(c => <option key={c} value={c}>{COUNTRY_FLAGS[c] || '🌐'} {c}</option>)}
+                                {uniqueCountries.map(c => <option key={c} value={c}>{COUNTRY_FLAGS[c]||'🌐'} {c}</option>)}
                             </select>
                         </div>
                         <div className="filter-group">
                             <label>Frequency</label>
                             <select value={filterFrequency} onChange={e => setFilterFrequency(e.target.value)}>
                                 <option value="">All</option>
-                                {['Daily', 'Weekly', 'Monthly', 'One-time'].map(f => <option key={f} value={f}>{f}</option>)}
+                                {['Daily','Weekly','Monthly','One-time'].map(f => <option key={f} value={f}>{f}</option>)}
                             </select>
                         </div>
                         <div className="filter-group">
                             <label>Status</label>
                             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
                                 <option value="">All</option>
-                                {['Upcoming', 'Live Now', 'Completed'].map(s => <option key={s} value={s}>{s}</option>)}
+                                {['Upcoming','Live Now','Completed'].map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                         </div>
                         <div className="filter-group">
@@ -281,7 +291,7 @@ const SatsangPage = () => {
                                 <option value="status">Status</option>
                             </select>
                         </div>
-                        {(filterCountry || filterFrequency || filterStatus || filterPlatform || selectedDate) && (
+                        {(filterCountry||filterFrequency||filterStatus||filterPlatform||selectedDate) && (
                             <button className="filter-clear-btn" onClick={clearFilters}>✕ Clear</button>
                         )}
                     </div>
@@ -313,17 +323,24 @@ const SatsangPage = () => {
                                 <tbody>
                                     {filteredEvents.map((ev, idx) => {
                                         const statusStyle = STATUS_COLORS[ev.status] || STATUS_COLORS['Upcoming'];
-                                        const flag = COUNTRY_FLAGS[ev.country] || '🌐';
-                                        const hasLink = ev.meeting_url && ev.meeting_url.trim() !== '';
+                                        const flag        = COUNTRY_FLAGS[ev.country] || '🌐';
+                                        const hasLink     = ev.meeting_url && ev.meeting_url.startsWith('http');
+                                        const ist         = formatIST(ev.event_datetime);
+
                                         return (
                                             <tr key={ev.id} className={ev.status === 'Live Now' ? 'row-live' : ''}>
                                                 <td className="td-num">{idx + 1}</td>
-                                                <td className="td-country">{flag} {ev.country}</td>
+                                                <td className="td-country">{flag}<br/><span className="td-country-name">{ev.country}</span></td>
                                                 <td className="td-name">
                                                     <strong>{ev.event_name}</strong>
                                                     {ev.status === 'Live Now' && <span className="live-pulse">● LIVE</span>}
                                                 </td>
-                                                <td className="td-time">{formatIST(ev.event_datetime)}</td>
+                                                {/* IST: date on line 1, time on line 2 */}
+                                                <td className="td-time">
+                                                    <span className="td-date-line">{ist.datePart}</span>
+                                                    <span className="td-time-line">{ist.timePart}</span>
+                                                </td>
+                                                {/* GMT/EST: no year */}
                                                 <td className="td-tz">
                                                     <span className="tz-line">{toGMT(ev.event_datetime)}</span>
                                                     <span className="tz-line">{toEST(ev.event_datetime)}</span>
@@ -343,12 +360,10 @@ const SatsangPage = () => {
                                                     {hasLink ? (
                                                         <div className="join-actions">
                                                             <a href={ev.meeting_url} target="_blank" rel="noopener noreferrer" className="join-btn">Join →</a>
-                                                            <button className="qr-btn" onClick={() => setQrModal({ url: ev.meeting_url, name: ev.event_name })}>
-                                                                📱 QR
-                                                            </button>
+                                                            <button className="qr-btn" onClick={() => setQrModal({ url: ev.meeting_url, name: ev.event_name })}>📱 QR</button>
                                                         </div>
                                                     ) : (
-                                                        <span className="no-link" title="Dynamic link — check closer to event time">🔗 Soon</span>
+                                                        <span className="no-link" title="Dynamic link — check closer to event">🔗 Soon</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -360,7 +375,7 @@ const SatsangPage = () => {
                     )}
                 </section>
 
-                {/* Section 3: Why Join */}
+                {/* Section 3 — Why Join */}
                 <section className="satsang-why-section">
                     <div className="satsang-why-inner">
                         <h2 className="satsang-why-title">🌳 Why Join Namavruksha?</h2>
@@ -371,28 +386,26 @@ const SatsangPage = () => {
                             <div className="why-card">
                                 <span className="why-icon">🔢</span>
                                 <h3>Track Your Practice</h3>
-                                <p>Every Nama you chant matters. Namavruksha helps you count with sincerity and build the beautiful discipline of Nishta — steadfast, daily practice — that deepens your connection to the Divine Name over time.</p>
+                                <p>Every Nama you chant matters. Build the beautiful discipline of Nishta — steadfast, daily practice — that deepens your connection to the Divine Name over time.</p>
                             </div>
                             <div className="why-card">
                                 <span className="why-icon">🌍</span>
                                 <h3>Chant with the World</h3>
-                                <p>You are never alone in this Sadhana. Devotees across India, USA, UK, Singapore, Australia and beyond are chanting right now. Your Nama joins a river of collective devotion flowing towards Bhagawan.</p>
+                                <p>Devotees across India, USA, UK, Singapore, Australia and beyond are chanting right now. Your Nama joins a river of collective devotion flowing towards Bhagawan.</p>
                             </div>
                             <div className="why-card">
                                 <span className="why-icon">📿</span>
                                 <h3>Offer as a Sankalpa</h3>
-                                <p>Each count you enter is not merely a number — it is an offering. Namavruksha gathers every Nama offered by every devotee and presents it collectively at the feet of Bhagawan Yogi Ramsuratkumar.</p>
+                                <p>Each count you enter is an offering. Namavruksha gathers every Nama offered by every devotee and presents it collectively at the feet of Bhagawan Yogi Ramsuratkumar.</p>
                             </div>
                             <div className="why-card">
                                 <span className="why-icon">🕉</span>
                                 <h3>Join Live Satsangs</h3>
-                                <p>These global chanting events are open to all. Join a session, chant together, and then log your Namas on Namavruksha. Your participation — however small — adds to the growing NamaVruksha for Bhagawan.</p>
+                                <p>These global chanting events are open to all. Join a session, chant together, and then log your Namas on Namavruksha — every Nama counts.</p>
                             </div>
                         </div>
                         <div className="satsang-cta-block">
-                            <p className="satsang-cta-text">
-                                <em>"The Name is the boat. Sincerity is the oar. Let us row together."</em>
-                            </p>
+                            <p className="satsang-cta-text"><em>"The Name is the boat. Sincerity is the oar. Let us row together."</em></p>
                             <div className="satsang-cta-buttons">
                                 <Link to="/register" className="cta-btn cta-primary">🌱 Register Free</Link>
                                 <Link to="/login" className="cta-btn cta-secondary">🔑 Login & Offer Nama</Link>
@@ -402,24 +415,22 @@ const SatsangPage = () => {
                     </div>
                 </section>
 
-                {/* Section 4: Logged-in tools */}
+                {/* Section 4 — Logged-in tools */}
                 {user && (
                     <section className="satsang-logged-links">
                         <p className="satsang-logged-title">Your Namavruksha Tools</p>
                         <div className="satsang-tool-links">
-                            <Link to="/audio" className="tool-link">🎵 Chant with Audio</Link>
-                            <Link to="/invest" className="tool-link">🙏 Log Your Namas</Link>
-                            <Link to="/reports" className="tool-link">📊 My Reports</Link>
-                            <Link to="/prayers" className="tool-link">🌸 Prayers</Link>
+                            <Link to="/audio"          className="tool-link">🎵 Chant with Audio</Link>
+                            <Link to="/invest"         className="tool-link">🙏 Log Your Namas</Link>
+                            <Link to="/reports"        className="tool-link">📊 My Reports</Link>
+                            <Link to="/prayers"        className="tool-link">🌸 Prayers</Link>
                         </div>
                     </section>
                 )}
             </div>
 
             {/* QR Modal */}
-            {qrModal && (
-                <QRModal url={qrModal.url} eventName={qrModal.name} onClose={() => setQrModal(null)} />
-            )}
+            {qrModal && <QRModal url={qrModal.url} eventName={qrModal.name} onClose={() => setQrModal(null)} />}
         </div>
     );
 };
