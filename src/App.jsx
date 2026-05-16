@@ -32,11 +32,12 @@ import BookshelfPage from './pages/BookshelfPage';
 import BookReaderPage from './pages/BookReaderPage';
 import PhotoGalleryPage from './pages/PhotoGalleryPage';
 import AudioGalleryPage from './pages/AudioGalleryPage';
+import SatsangPage from './pages/SatsangPage';           // ← NEW
+import SatsangSubmitPage from './pages/SatsangSubmitPage'; // ← NEW
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="page-loader">
@@ -45,18 +46,15 @@ const ProtectedRoute = ({ children }) => {
       </div>
     );
   }
-
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-
   return children;
 };
 
 // Admin Protected Route
 const AdminRoute = ({ children }) => {
   const { isAdmin, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="page-loader">
@@ -65,18 +63,15 @@ const AdminRoute = ({ children }) => {
       </div>
     );
   }
-
   if (!isAdmin) {
     return <Navigate to="/admin/login" replace />;
   }
-
   return children;
 };
 
 // Moderator Protected Route
 const ModeratorRoute = ({ children }) => {
   const { moderator, loading } = useAuth();
-
   if (loading) {
     return (
       <div className="page-loader">
@@ -85,11 +80,9 @@ const ModeratorRoute = ({ children }) => {
       </div>
     );
   }
-
   if (!moderator) {
     return <Navigate to="/moderator/login" replace />;
   }
-
   return children;
 };
 
@@ -108,43 +101,33 @@ function AppRoutes() {
       <Route path="/books/:id" element={<BookReaderPage />} />
       <Route path="/gallery" element={<PhotoGalleryPage />} />
       <Route path="/audios" element={<AudioGalleryPage />} />
+      <Route path="/satsang" element={<SatsangPage />} />           {/* ← NEW */}
+      <Route path="/satsang/submit" element={<SatsangSubmitPage />} /> {/* ← NEW */}
 
       {/* Protected User Routes */}
       <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <DashboardPage />
-        </ProtectedRoute>
+        <ProtectedRoute><DashboardPage /></ProtectedRoute>
       } />
       <Route path="/invest" element={
-        <ProtectedRoute>
-          <InvestNamaPage />
-        </ProtectedRoute>
+        <ProtectedRoute><InvestNamaPage /></ProtectedRoute>
       } />
       <Route path="/audio" element={
-        <ProtectedRoute>
-          <AudioPlayerPage />
-        </ProtectedRoute>
+        <ProtectedRoute><AudioPlayerPage /></ProtectedRoute>
       } />
       <Route path="/reports" element={
-        <ProtectedRoute>
-          <ReportsPage />
-        </ProtectedRoute>
+        <ProtectedRoute><ReportsPage /></ProtectedRoute>
       } />
 
       {/* Moderator Routes */}
       <Route path="/moderator/login" element={<ModeratorLoginPage />} />
       <Route path="/moderator/dashboard" element={
-        <ModeratorRoute>
-          <ModeratorDashboardPage />
-        </ModeratorRoute>
+        <ModeratorRoute><ModeratorDashboardPage /></ModeratorRoute>
       } />
 
       {/* Admin Routes */}
       <Route path="/admin/login" element={<AdminLoginPage />} />
       <Route path="/admin/dashboard" element={
-        <AdminRoute>
-          <AdminDashboardPage />
-        </AdminRoute>
+        <AdminRoute><AdminDashboardPage /></AdminRoute>
       } />
 
       {/* Fallback */}

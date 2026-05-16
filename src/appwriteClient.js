@@ -8,7 +8,6 @@ const projectId = import.meta.env.VITE_APPWRITE_PROJECT_ID || '6953d1b2000e39271
 export const DATABASE_ID = import.meta.env.VITE_APPWRITE_DATABASE_ID || '6953dc6900395adffa8c';
 
 // Single media bucket for all files (books, audio, images)
-// Files are organized by prefix: books/, audio/, images/
 export const MEDIA_BUCKET_ID = import.meta.env.VITE_APPWRITE_MEDIA_BUCKET_ID || '695420140035b3e66c3a';
 
 // Legacy exports for backwards compatibility (all point to same bucket)
@@ -35,7 +34,8 @@ export const COLLECTIONS = {
     ACCOUNT_DELETION_REQUESTS: 'account_deletion_requests',
     USER_DELETION_REQUESTS: 'user_deletion_requests',
     PASSWORD_RESETS: 'password_resets',
-    FEEDBACK: 'feedback'
+    FEEDBACK: 'feedback',
+    SATSANG_EVENTS: 'satsang_events'   // ← NEW
 };
 
 // Initialize Appwrite Client
