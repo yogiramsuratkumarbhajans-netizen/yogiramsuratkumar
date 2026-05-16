@@ -96,9 +96,7 @@ const LandingPage = () => {
                                     <p className="challenge-intro">
                                         Not a competition … a collective offering through Nama. Chant together and grow a global NamaVruksha for Bhagawan Yogi Ramsuratkumar.
                                     </p>
-
                                     <div className="challenge-info-row">
-                                        {/* Chanting count guide */}
                                         <div className="challenge-info-box">
                                             <span className="challenge-info-label">Chanting Count Guide</span>
                                             <span className="challenge-info-val">Chant minimum <strong>1008 Namas</strong> daily.</span>
@@ -112,13 +110,11 @@ const LandingPage = () => {
                                                 <span className="chant-equals">= 4 Namas</span>
                                             </div>
                                         </div>
-                                        {/* Completion blessing */}
                                         <div className="challenge-info-box">
                                             <span className="challenge-info-label">Completion Blessing</span>
                                             <span className="challenge-info-val">First 3 devotees receive the Bhagawan Yogi Ramsuratkumar Ashram Monthly Magazine <strong><em>Saranagatham</em></strong> Annual Subscription <em>(within India)</em>.</span>
                                         </div>
                                     </div>
-
                                     <div className="challenge-steps">
                                         <p className="challenge-steps-label">How to Join</p>
                                         <div className="challenge-step">
@@ -130,13 +126,11 @@ const LandingPage = () => {
                                             <span>Login → Dashboard → Invest Nama → set today as start &amp; end date → submit count</span>
                                         </div>
                                     </div>
-
                                     <div className="challenge-sincere">
                                         <span className="challenge-quote-mark">"</span>
                                         I sincerely confirm that I have entered my Nama daily, without any backward or forward entries, and stayed true to Bhagawan in this Nama Sadhana.
                                         <span className="challenge-quote-mark">"</span>
                                     </div>
-
                                     <div className="challenge-footer-note">
                                         Simple. Sincere. Powerful. Let Nama guide us.
                                     </div>
@@ -144,6 +138,11 @@ const LandingPage = () => {
                             </div>
                         </div>
 
+                    </div>
+
+                    {/* Greeting centered below both frames */}
+                    <div className="greeting-text-centered">
+                        🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏
                     </div>
                 </header>
 
@@ -229,8 +228,9 @@ const LandingPage = () => {
                     </p>
                 </section>
 
-                {/* Media Links */}
+                {/* Media Links — Satsang added */}
                 <section className="media-compact">
+                    <Link to="/satsang" className="media-link" style={{ background: 'linear-gradient(135deg, #7a1a1a, #a52a2a)', color: 'white', border: 'none' }}>🕉 Global Satsang</Link>
                     <Link to="/gallery" className="media-link">📷 Gallery</Link>
                     <Link to="/audios" className="media-link">🎵 Audio</Link>
                     <Link to="/books" className="media-link">📚 Library</Link>
