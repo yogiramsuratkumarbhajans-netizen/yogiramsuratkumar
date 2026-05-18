@@ -4,35 +4,117 @@ import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
 import './SatsangPage.css';
 
-// ── Timezone conversion (IST base) ──────────────────────────────
-const toGMT = (istDateStr) => {
+// ── Timezone helpers using JS Intl (auto BST/GMT/EST/EDT) ─────────
+const formatInTZ = (istDateStr, tz, opts) => {
     const d = new Date(istDateStr);
     if (isNaN(d)) return '—';
-    const gmt = new Date(d.getTime() - 5.5 * 60 * 60 * 1000);
-    // No year — just day month, time
-    return gmt.toLocaleString('en-GB', {
-        day: '2-digit', month: 'short',
-        hour: '2-digit', minute: '2-digit', hour12: false
-    }) + ' GMT';
+    return new Intl.DateTimeFormat('en-GB', { timeZone: tz, ...opts }).format(d);
 };
 
-const toEST = (istDateStr) => {
+const toUKTime = (istDateStr) => {
+    // Uses Europe/London which auto-handles GMT (winter) and BST (summer)
     const d = new Date(istDateStr);
     if (isNaN(d)) return '—';
-    const est = new Date(d.getTime() - 10.5 * 60 * 60 * 1000);
-    return est.toLocaleString('en-US', {
-        day: '2-digit', month: 'short',
-        hour: '2-digit', minute: '2-digit', hour12: true
-    }) + ' EST';
+    const time = formatInTZ(istDateStr, 'Europe/London', { hour: '2-digit', minute: '2-digit', hour12: false });
+    const day  = formatInTZ(istDateStr, 'Europe/London', { day: '2-digit', month: 'short' });
+    // Detect whether BST or GMT
+    const tzAbbr = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/London', timeZoneName: 'short' })
+        .formatToParts(new Date(istDateStr))
+        .find(p => p.type === 'timeZoneName')?.value || 'UK';
+    return `${day}, ${time} ${tzAbbr}`;
+};
+
+const toUSCentral = (istDateStr) => {
+    // America/Chicago auto-handles CST (winter) and CDT (summer)
+    const d = new Date(istDateStr);
+    if (isNaN(d)) return '—';
+    const time = formatInTZ(istDateStr, 'America/Chicago', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const day  = formatInTZ(istDateStr, 'America/Chicago', { day: '2-digit', month: 'short' });
+    const tzAbbr = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', timeZoneName: 'short' })
+        .formatToParts(new Date(istDateStr))
+        .find(p => p.type === 'timeZoneName')?.value || 'CT';
+    return `${day}, ${time} ${tzAbbr}`;
 };
 
 const formatIST = (istDateStr) => {
     const d = new Date(istDateStr);
-    if (isNaN(d)) return '—';
-    // Day + Month on line 1, time on line 2
-    const datePart = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    const timePart = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) + ' IST';
+    if (isNaN(d)) return { datePart: '—', timePart: '—' };
+    const datePart = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric' }).format(d);
+    const timePart = new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).format(d) + ' IST';
     return { datePart, timePart };
+};
+
+// ── Recurring event expansion ─────────────────────────────────────
+// Returns array of Date objects for upcoming occurrences of an event
+const getUpcomingDates = (ev, fromDate, weeksAhead = 12) => {
+    const freq = ev.frequency || '';
+    const base = new Date(ev.event_datetime);
+    if (isNaN(base)) return [];
+
+    const until = new Date(fromDate);
+    until.setDate(until.getDate() + weeksAhead * 7);
+
+    const DAY_MAP = {
+        'Every Monday': 1, 'Every Tuesday': 2, 'Every Wednesday': 3,
+        'Every Thursday': 4, 'Every Friday': 5, 'Every Saturday': 6, 'Every Sunday': 0
+    };
+
+    const results = [];
+    const today = new Date(fromDate);
+    today.setHours(0, 0, 0, 0);
+
+    if (freq === 'Daily') {
+        const d = new Date(today);
+        while (d <= until && results.length < 30) {
+            const dt = new Date(d);
+            dt.setHours(base.getHours(), base.getMinutes(), 0, 0);
+            results.push(dt);
+            d.setDate(d.getDate() + 1);
+        }
+    } else if (DAY_MAP[freq] !== undefined) {
+        const targetDay = DAY_MAP[freq];
+        const d = new Date(today);
+        // Advance to first occurrence
+        while (d.getDay() !== targetDay) d.setDate(d.getDate() + 1);
+        while (d <= until && results.length < weeksAhead) {
+            const dt = new Date(d);
+            dt.setHours(base.getHours(), base.getMinutes(), 0, 0);
+            results.push(dt);
+            d.setDate(d.getDate() + 7);
+        }
+    } else if (freq === 'Weekly') {
+        const d = new Date(base);
+        while (d < today) d.setDate(d.getDate() + 7);
+        while (d <= until && results.length < weeksAhead) {
+            results.push(new Date(d));
+            d.setDate(d.getDate() + 7);
+        }
+    } else if (freq === 'Monthly' || freq === '2nd Saturday Monthly') {
+        // Just show the base date if upcoming, else skip
+        if (base >= today) results.push(base);
+    } else {
+        // One-time or unknown
+        if (base >= today) results.push(base);
+    }
+
+    return results;
+};
+
+// Build a map of date-string → event count for calendar
+const buildCalendarMap = (events) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const map = {}; // 'YYYY-MM-DD' → [ev, ...]
+
+    events.forEach(ev => {
+        const dates = getUpcomingDates(ev, today, 16);
+        dates.forEach(d => {
+            const key = d.toISOString().split('T')[0];
+            if (!map[key]) map[key] = [];
+            map[key].push(ev);
+        });
+    });
+    return map;
 };
 
 // ── Free QR API ───────────────────────────────────────────────────
@@ -46,11 +128,20 @@ const COUNTRY_FLAGS = {
     'South Africa': '🇿🇦', 'Netherlands': '🇳🇱', 'Sweden': '🇸🇪', 'Global': '🌍'
 };
 
-const STATUS_COLORS = {
-    'Upcoming': { bg: '#e8f5e9', color: '#2e7d32', border: '#a5d6a7' },
-    'Live Now':  { bg: '#fff3e0', color: '#e65100', border: '#ffb74d' },
-    'Completed': { bg: '#f5f5f5', color: '#757575', border: '#e0e0e0' }
+// ── 24/7 Ashram Live row (always visible) ─────────────────────────
+const ASHRAM_247 = {
+    id: 'ashram-247',
+    event_name: 'Bhagawan Nama — 24/7 Live',
+    country: 'India',
+    host_name: 'Yogi Ramsuratkumar Ashram',
+    frequency: '24/7 Always',
+    platform: 'YouTube',
+    meeting_url: 'https://www.youtube.com/watch?v=SQIs3S7RhgM',
+    note: 'Immerse in the eternal stream of Bhagawan\'s Divine Name — flowing ceaselessly, day and night, for seekers across the world.',
+    is247: true
 };
+
+const ASHRAM_CHANNEL = 'https://www.youtube.com/@YogiRamsuratkumarAshram';
 
 // ── QR Modal ──────────────────────────────────────────────────────
 const QRModal = ({ url, eventName, onClose }) => (
@@ -66,7 +157,7 @@ const QRModal = ({ url, eventName, onClose }) => (
 );
 
 // ── Calendar ──────────────────────────────────────────────────────
-const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
+const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
     const [currentMonth, setCurrentMonth] = useState(new Date());
 
     const year  = currentMonth.getFullYear();
@@ -75,22 +166,27 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const today = new Date();
 
-    const eventDates = events.reduce((acc, ev) => {
-        const d = new Date(ev.event_datetime);
-        if (d.getFullYear() === year && d.getMonth() === month) {
-            const key = d.getDate();
-            if (!acc[key]) acc[key] = [];
-            acc[key].push(ev);
-        }
-        return acc;
-    }, {});
-
     const prevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
     const nextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
     const goToday   = () => setCurrentMonth(new Date());
 
     const monthName = currentMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+    const getDateKey = (d) => {
+        const y = year, m = String(month + 1).padStart(2,'0'), day = String(d).padStart(2,'0');
+        return `${y}-${m}-${day}`;
+    };
+
+    const isSelectedDay = (day) => {
+        if (!selectedDate) return false;
+        const s = new Date(selectedDate);
+        return s.getDate() === day && s.getMonth() === month && s.getFullYear() === year;
+    };
+
+    const isToday = (day) => {
+        return today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
+    };
 
     return (
         <div className="satsang-calendar">
@@ -103,39 +199,28 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
                 <button className="cal-nav-btn" onClick={nextMonth}>›</button>
             </div>
 
-            {/* Day labels */}
             <div className="cal-grid">
                 {days.map(d => <div key={d} className="cal-day-label">{d}</div>)}
-
-                {/* Empty cells */}
-                {Array.from({ length: firstDay }).map((_, i) => (
-                    <div key={`e-${i}`} className="cal-cell empty" />
-                ))}
-
-                {/* Day cells */}
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                     const day = i + 1;
-                    const isToday    = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year;
-                    const hasEvents  = eventDates[day];
-                    const isSelected = selectedDate &&
-                        new Date(selectedDate).getDate()     === day &&
-                        new Date(selectedDate).getMonth()    === month &&
-                        new Date(selectedDate).getFullYear() === year;
+                    const key = getDateKey(day);
+                    const eventsOnDay = calendarMap[key] || [];
+                    const count = eventsOnDay.length;
+                    const todayCell = isToday(day);
+                    const selected = isSelectedDay(day);
 
                     return (
                         <div
                             key={day}
-                            className={`cal-cell ${isToday ? 'today' : ''} ${hasEvents ? 'has-events' : ''} ${isSelected ? 'selected' : ''}`}
-                            onClick={() => hasEvents && onDateClick(new Date(year, month, day))}
-                            title={hasEvents ? hasEvents.map(e => e.event_name).join(', ') : ''}
+                            className={`cal-cell ${todayCell ? 'today' : ''} ${count > 0 ? 'has-events' : ''} ${selected ? 'selected' : ''}`}
+                            onClick={() => count > 0 && onDateClick(new Date(year, month, day))}
+                            title={count > 0 ? eventsOnDay.map(e => e.event_name).join(', ') : ''}
                         >
-                            <span className="cal-day-num">{day}</span>
-                            {hasEvents && (
-                                <div className="cal-dots">
-                                    {hasEvents.slice(0, 3).map((ev, idx) => (
-                                        <span key={idx} className={`cal-dot status-${ev.status?.replace(' ','-').toLowerCase()}`} />
-                                    ))}
-                                </div>
+                            <span className={`cal-day-num ${todayCell ? 'today-num' : ''}`}>{day}</span>
+                            {/* Show count number instead of dots */}
+                            {count > 0 && (
+                                <span className="cal-event-count">{count}</span>
                             )}
                         </div>
                     );
@@ -143,9 +228,14 @@ const SatsangCalendar = ({ events, onDateClick, selectedDate }) => {
             </div>
 
             <div className="cal-legend">
-                <span className="legend-item"><span className="cal-dot status-upcoming" />Upcoming</span>
-                <span className="legend-item"><span className="cal-dot status-live-now" />Live Now</span>
-                <span className="legend-item"><span className="cal-dot status-completed" />Completed</span>
+                <span className="legend-item">
+                    <span className="cal-event-count-sample">3</span>
+                    Number = events on that day
+                </span>
+                <span className="legend-item today-legend">
+                    <span className="today-sample">17</span>
+                    Today
+                </span>
             </div>
         </div>
     );
@@ -158,10 +248,10 @@ const SatsangPage = () => {
     const [loading,      setLoading]      = useState(true);
     const [selectedDate, setSelectedDate] = useState(null);
     const [qrModal,      setQrModal]      = useState(null);
+    const [calendarMap,  setCalendarMap]  = useState({});
 
     const [filterCountry,   setFilterCountry]   = useState('');
     const [filterFrequency, setFilterFrequency] = useState('');
-    const [filterStatus,    setFilterStatus]    = useState('');
     const [filterPlatform,  setFilterPlatform]  = useState('');
     const [sortBy,          setSortBy]          = useState('date_asc');
 
@@ -175,44 +265,60 @@ const SatsangPage = () => {
                 DATABASE_ID, COLLECTIONS.SATSANG_EVENTS,
                 [Query.equal('is_active', true), Query.orderAsc('event_datetime'), Query.limit(100)]
             );
-            setEvents(res.documents.map(d => ({ ...d, id: d.$id })));
+            const evs = res.documents.map(d => ({ ...d, id: d.$id }));
+            setEvents(evs);
+            setCalendarMap(buildCalendarMap(evs));
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
     };
 
     const handleDateClick = (date) => {
         setSelectedDate(date);
-        setFilterCountry(''); setFilterFrequency(''); setFilterStatus(''); setFilterPlatform('');
+        setFilterCountry(''); setFilterFrequency(''); setFilterPlatform('');
         setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     };
 
     const clearFilters = () => {
         setSelectedDate(null);
-        setFilterCountry(''); setFilterFrequency(''); setFilterStatus(''); setFilterPlatform('');
+        setFilterCountry(''); setFilterFrequency(''); setFilterPlatform('');
     };
 
-    const filteredEvents = events
-        .filter(ev => {
-            if (selectedDate) {
-                const d = new Date(ev.event_datetime), s = new Date(selectedDate);
-                if (d.getDate() !== s.getDate() || d.getMonth() !== s.getMonth() || d.getFullYear() !== s.getFullYear()) return false;
-            }
-            if (filterCountry   && ev.country   !== filterCountry)   return false;
-            if (filterFrequency && ev.frequency  !== filterFrequency) return false;
-            if (filterStatus    && ev.status     !== filterStatus)    return false;
-            if (filterPlatform  && ev.platform   !== filterPlatform)  return false;
-            return true;
-        })
-        .sort((a, b) => {
-            if (sortBy === 'date_asc')  return new Date(a.event_datetime) - new Date(b.event_datetime);
-            if (sortBy === 'date_desc') return new Date(b.event_datetime) - new Date(a.event_datetime);
-            if (sortBy === 'country')   return a.country.localeCompare(b.country);
-            if (sortBy === 'status')    return a.status.localeCompare(b.status);
-            return 0;
-        });
+    // Filter events for selected date
+    const filteredEvents = events.filter(ev => {
+        if (selectedDate) {
+            const today = new Date(); today.setHours(0,0,0,0);
+            const dates = getUpcomingDates(ev, today, 16);
+            const sel = new Date(selectedDate); sel.setHours(0,0,0,0);
+            const matchesDate = dates.some(d => {
+                const dd = new Date(d); dd.setHours(0,0,0,0);
+                return dd.getTime() === sel.getTime();
+            });
+            if (!matchesDate) return false;
+        }
+        if (filterCountry   && ev.country   !== filterCountry)   return false;
+        if (filterFrequency && ev.frequency  !== filterFrequency) return false;
+        if (filterPlatform  && ev.platform   !== filterPlatform)  return false;
+        return true;
+    });
 
     const uniqueCountries  = [...new Set(events.map(e => e.country))].sort();
     const uniquePlatforms  = [...new Set(events.map(e => e.platform))].sort();
+    const uniqueFreqs      = [...new Set(events.map(e => e.frequency))].sort();
+
+    // Display date for each event in table
+    const getDisplayDate = (ev) => {
+        if (selectedDate) {
+            // Show the specific selected date with correct time
+            const base = new Date(ev.event_datetime);
+            const d = new Date(selectedDate);
+            d.setHours(base.getHours(), base.getMinutes(), 0, 0);
+            return d.toISOString();
+        }
+        // Show next upcoming occurrence
+        const today = new Date(); today.setHours(0,0,0,0);
+        const dates = getUpcomingDates(ev, today, 16);
+        return dates.length > 0 ? dates[0].toISOString() : ev.event_datetime;
+    };
 
     return (
         <div className="satsang-page">
@@ -230,13 +336,32 @@ const SatsangPage = () => {
 
             <div className="satsang-container">
 
+                {/* 24/7 Ashram Banner — always on top */}
+                <div className="ashram-247-banner">
+                    <div className="ashram-247-left">
+                        <span className="ashram-247-live-badge">● 24/7 LIVE</span>
+                        <div>
+                            <p className="ashram-247-title">🙏 Bhagawan Nama — Flowing Always</p>
+                            <p className="ashram-247-note">{ASHRAM_247.note}</p>
+                        </div>
+                    </div>
+                    <div className="ashram-247-right">
+                        <a href={ASHRAM_247.meeting_url} target="_blank" rel="noopener noreferrer" className="ashram-247-watch-btn">
+                            ▶ Watch Live Now
+                        </a>
+                        <a href={ASHRAM_CHANNEL} target="_blank" rel="noopener noreferrer" className="ashram-247-channel-btn">
+                            📺 Ashram Channel
+                        </a>
+                    </div>
+                </div>
+
                 {/* Section 1 — Calendar */}
                 <section className="satsang-section">
                     <h2 className="satsang-section-title">📅 Event Calendar</h2>
-                    <p className="satsang-section-sub">Click on a highlighted date to filter events for that day</p>
+                    <p className="satsang-section-sub">Numbers on each date show how many satsangs are scheduled — click to see them</p>
                     {loading
                         ? <div className="satsang-loader"><span className="loader" /><p>Loading events...</p></div>
-                        : <SatsangCalendar events={events} onDateClick={handleDateClick} selectedDate={selectedDate} />
+                        : <SatsangCalendar calendarMap={calendarMap} onDateClick={handleDateClick} selectedDate={selectedDate} />
                     }
                 </section>
 
@@ -244,9 +369,9 @@ const SatsangPage = () => {
                 <section className="satsang-section" ref={tableRef}>
                     <div className="satsang-table-header">
                         <h2 className="satsang-section-title">
-                            🌏 All Events
-                            {filteredEvents.length !== events.length && (
-                                <span className="event-count-badge">{filteredEvents.length} of {events.length}</span>
+                            🌏 {selectedDate ? `Events on ${new Date(selectedDate).toLocaleDateString('en-IN', { weekday:'long', day:'numeric', month:'long' })}` : 'All Events'}
+                            {selectedDate && (
+                                <span className="event-count-badge">{filteredEvents.length} event{filteredEvents.length !== 1 ? 's' : ''}</span>
                             )}
                         </h2>
                         <Link to="/satsang/submit" className="satsang-submit-btn-sm">+ Host an Event</Link>
@@ -265,14 +390,7 @@ const SatsangPage = () => {
                             <label>Frequency</label>
                             <select value={filterFrequency} onChange={e => setFilterFrequency(e.target.value)}>
                                 <option value="">All</option>
-                                {['Daily','Weekly','Monthly','One-time'].map(f => <option key={f} value={f}>{f}</option>)}
-                            </select>
-                        </div>
-                        <div className="filter-group">
-                            <label>Status</label>
-                            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-                                <option value="">All</option>
-                                {['Upcoming','Live Now','Completed'].map(s => <option key={s} value={s}>{s}</option>)}
+                                {uniqueFreqs.map(f => <option key={f} value={f}>{f}</option>)}
                             </select>
                         </div>
                         <div className="filter-group">
@@ -282,17 +400,8 @@ const SatsangPage = () => {
                                 {uniquePlatforms.map(p => <option key={p} value={p}>{p}</option>)}
                             </select>
                         </div>
-                        <div className="filter-group">
-                            <label>Sort By</label>
-                            <select value={sortBy} onChange={e => setSortBy(e.target.value)}>
-                                <option value="date_asc">Date ↑</option>
-                                <option value="date_desc">Date ↓</option>
-                                <option value="country">Country</option>
-                                <option value="status">Status</option>
-                            </select>
-                        </div>
-                        {(filterCountry||filterFrequency||filterStatus||filterPlatform||selectedDate) && (
-                            <button className="filter-clear-btn" onClick={clearFilters}>✕ Clear</button>
+                        {(filterCountry||filterFrequency||filterPlatform||selectedDate) && (
+                            <button className="filter-clear-btn" onClick={clearFilters}>✕ Clear filters</button>
                         )}
                     </div>
 
@@ -311,51 +420,68 @@ const SatsangPage = () => {
                                         <th>Country</th>
                                         <th>Event Name</th>
                                         <th>Date & Time (IST)</th>
-                                        <th>GMT / EST</th>
-                                        <th>Sankalpa</th>
+                                        <th>UK Time</th>
+                                        <th>US Central</th>
                                         <th>Frequency</th>
                                         <th>Platform</th>
                                         <th>Host</th>
-                                        <th>Status</th>
                                         <th>Join / QR</th>
                                     </tr>
                                 </thead>
                                 <tbody>
+                                    {/* Always-visible 24/7 row */}
+                                    <tr className="row-247">
+                                        <td className="td-num">—</td>
+                                        <td className="td-country">🇮🇳<br/><span className="td-country-name">India</span></td>
+                                        <td className="td-name">
+                                            <strong>Bhagawan Nama — 24/7 Live</strong>
+                                            <span className="badge-247">● Always Live</span>
+                                        </td>
+                                        <td className="td-time"><span className="td-time-line">Anytime · Always</span></td>
+                                        <td className="td-tz"><span className="tz-line">Anytime</span></td>
+                                        <td className="td-tz"><span className="tz-line">Anytime</span></td>
+                                        <td><span className="freq-badge freq-247">24/7</span></td>
+                                        <td>YouTube</td>
+                                        <td>YR Ashram</td>
+                                        <td className="td-join">
+                                            <div className="join-actions">
+                                                <a href={ASHRAM_247.meeting_url} target="_blank" rel="noopener noreferrer" className="join-btn join-btn-247">▶ Watch</a>
+                                                <a href={ASHRAM_CHANNEL} target="_blank" rel="noopener noreferrer" className="qr-btn">📺 Channel</a>
+                                            </div>
+                                        </td>
+                                    </tr>
+
                                     {filteredEvents.map((ev, idx) => {
-                                        const statusStyle = STATUS_COLORS[ev.status] || STATUS_COLORS['Upcoming'];
-                                        const flag        = COUNTRY_FLAGS[ev.country] || '🌐';
-                                        const hasLink     = ev.meeting_url && ev.meeting_url.startsWith('http');
-                                        const ist         = formatIST(ev.event_datetime);
+                                        const flag    = COUNTRY_FLAGS[ev.country] || '🌐';
+                                        const hasLink = ev.meeting_url && ev.meeting_url.startsWith('http');
+                                        const displayDateStr = getDisplayDate(ev);
+                                        const ist = formatIST(displayDateStr);
 
                                         return (
-                                            <tr key={ev.id} className={ev.status === 'Live Now' ? 'row-live' : ''}>
+                                            <tr key={ev.id}>
                                                 <td className="td-num">{idx + 1}</td>
-                                                <td className="td-country">{flag}<br/><span className="td-country-name">{ev.country}</span></td>
+                                                <td className="td-country">
+                                                    {flag}<br/>
+                                                    <span className="td-country-name">{ev.country}</span>
+                                                </td>
                                                 <td className="td-name">
                                                     <strong>{ev.event_name}</strong>
-                                                    {ev.status === 'Live Now' && <span className="live-pulse">● LIVE</span>}
                                                 </td>
-                                                {/* IST: date on line 1, time on line 2 */}
                                                 <td className="td-time">
                                                     <span className="td-date-line">{ist.datePart}</span>
                                                     <span className="td-time-line">{ist.timePart}</span>
                                                 </td>
-                                                {/* GMT/EST: no year */}
                                                 <td className="td-tz">
-                                                    <span className="tz-line">{toGMT(ev.event_datetime)}</span>
-                                                    <span className="tz-line">{toEST(ev.event_datetime)}</span>
+                                                    <span className="tz-line">{toUKTime(displayDateStr)}</span>
                                                 </td>
-                                                <td className="td-sankalpa">{ev.sankalpa || '—'}</td>
-                                                <td className="td-freq">
+                                                <td className="td-tz">
+                                                    <span className="tz-line">{toUSCentral(displayDateStr)}</span>
+                                                </td>
+                                                <td>
                                                     <span className="freq-badge">{ev.frequency}</span>
                                                 </td>
                                                 <td className="td-platform">{ev.platform}</td>
                                                 <td className="td-host">{ev.host_name}</td>
-                                                <td className="td-status">
-                                                    <span className="status-badge" style={{ background: statusStyle.bg, color: statusStyle.color, border: `1px solid ${statusStyle.border}` }}>
-                                                        {ev.status}
-                                                    </span>
-                                                </td>
                                                 <td className="td-join">
                                                     {hasLink ? (
                                                         <div className="join-actions">
@@ -363,7 +489,7 @@ const SatsangPage = () => {
                                                             <button className="qr-btn" onClick={() => setQrModal({ url: ev.meeting_url, name: ev.event_name })}>📱 QR</button>
                                                         </div>
                                                     ) : (
-                                                        <span className="no-link" title="Dynamic link — check closer to event">🔗 Soon</span>
+                                                        <span className="no-link" title="Dynamic link — check closer to event time">🔗 Soon</span>
                                                     )}
                                                 </td>
                                             </tr>
@@ -420,16 +546,15 @@ const SatsangPage = () => {
                     <section className="satsang-logged-links">
                         <p className="satsang-logged-title">Your Namavruksha Tools</p>
                         <div className="satsang-tool-links">
-                            <Link to="/audio"          className="tool-link">🎵 Chant with Audio</Link>
-                            <Link to="/invest"         className="tool-link">🙏 Log Your Namas</Link>
-                            <Link to="/reports"        className="tool-link">📊 My Reports</Link>
-                            <Link to="/prayers"        className="tool-link">🌸 Prayers</Link>
+                            <Link to="/audio"   className="tool-link">🎵 Chant with Audio</Link>
+                            <Link to="/invest"  className="tool-link">🙏 Log Your Namas</Link>
+                            <Link to="/reports" className="tool-link">📊 My Reports</Link>
+                            <Link to="/prayers" className="tool-link">🌸 Prayers</Link>
                         </div>
                     </section>
                 )}
             </div>
 
-            {/* QR Modal */}
             {qrModal && <QRModal url={qrModal.url} eventName={qrModal.name} onClose={() => setQrModal(null)} />}
         </div>
     );

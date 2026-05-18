@@ -26,604 +26,397 @@
     justify-content: space-between;
 }
 
-.satsang-back {
-    color: rgba(255,255,255,0.85);
-    text-decoration: none;
-    font-size: 0.9rem;
-    white-space: nowrap;
-}
+.satsang-back { color: rgba(255,255,255,0.85); text-decoration: none; font-size: 0.9rem; white-space: nowrap; }
 .satsang-back:hover { color: #fff; }
 
 .satsang-header-text { text-align: center; flex: 1; }
 
-.satsang-page-title {
-    margin: 0;
-    font-size: 1.4rem;
-    font-weight: 700;
-    color: #fff;
-    font-family: Georgia, serif;
-}
-
-.satsang-page-subtitle {
-    margin: 0;
-    font-size: 0.82rem;
-    color: rgba(255,255,255,0.8);
-    margin-top: 2px;
-}
+.satsang-page-title { margin: 0; font-size: 1.4rem; font-weight: 700; color: #fff; font-family: Georgia, serif; }
+.satsang-page-subtitle { margin: 0; font-size: 0.82rem; color: rgba(255,255,255,0.8); margin-top: 2px; }
 
 .satsang-submit-btn {
-    background: #fff;
-    color: #7a1a1a;
-    padding: 8px 16px;
-    border-radius: 20px;
-    text-decoration: none;
-    font-size: 0.85rem;
-    font-weight: 700;
-    white-space: nowrap;
-    transition: all 0.2s;
+    background: #fff; color: #7a1a1a; padding: 8px 16px; border-radius: 20px;
+    text-decoration: none; font-size: 0.85rem; font-weight: 700; white-space: nowrap; transition: all 0.2s;
 }
 .satsang-submit-btn:hover { background: #ffd080; }
 
 /* ── Container ── */
 .satsang-container {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-    display: flex;
-    flex-direction: column;
-    gap: 2.5rem;
+    max-width: 1200px; margin: 0 auto;
+    padding: 1.5rem 1.5rem 2rem;
+    display: flex; flex-direction: column; gap: 1.5rem;
 }
 
-/* ── Section card ── */
-.satsang-section {
-    background: #fff;
+/* ── 24/7 Ashram Banner ── */
+.ashram-247-banner {
+    background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
     border-radius: 16px;
-    padding: 1.75rem;
-    border: 1px solid #f0e6d9;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.05);
-}
-
-.satsang-section-title {
-    font-size: 1.2rem;
-    color: #8B0000;
-    font-family: Georgia, serif;
-    font-weight: 700;
-    margin: 0 0 0.35rem;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.event-count-badge {
-    font-size: 0.78rem;
-    background: #fff3e0;
-    color: #FF6600;
-    border: 1px solid #ffb74d;
-    padding: 2px 10px;
-    border-radius: 12px;
-    font-family: sans-serif;
-    font-weight: 600;
-}
-
-.satsang-section-sub {
-    font-size: 0.85rem;
-    color: #888;
-    margin: 0 0 1.25rem;
-    font-style: italic;
-}
-
-.satsang-loader {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 1rem;
-    padding: 2rem;
-    color: #888;
-}
-
-/* ══════════════════════════════════
-   CALENDAR — framed & beautiful
-   ══════════════════════════════════ */
-.satsang-calendar {
-    max-width: 660px;
-    margin: 0 auto;
-    background: #fff9f0;
-    border: 2px solid #d4a84b;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 4px 20px rgba(139, 90, 0, 0.12);
-}
-
-.cal-header {
+    padding: 1.25rem 1.75rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 1.5rem;
+    border: 1px solid rgba(255, 153, 51, 0.3);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    flex-wrap: wrap;
+}
+
+.ashram-247-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    flex: 1;
+}
+
+.ashram-247-live-badge {
+    background: #e65100;
+    color: #fff;
+    font-size: 0.72rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 20px;
+    white-space: nowrap;
+    animation: pulse 1.5s infinite;
+    flex-shrink: 0;
+    margin-top: 2px;
+    letter-spacing: 0.5px;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+
+.ashram-247-title {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffd080;
+    font-family: Georgia, serif;
+}
+
+.ashram-247-note {
+    margin: 0;
+    font-size: 0.82rem;
+    color: rgba(255,255,255,0.8);
+    line-height: 1.55;
+}
+
+.ashram-247-right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.ashram-247-watch-btn {
+    background: #FF0000;
+    color: #fff;
+    padding: 9px 20px;
+    border-radius: 22px;
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 700;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.ashram-247-watch-btn:hover { background: #cc0000; transform: scale(1.03); }
+
+.ashram-247-channel-btn {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.85);
+    padding: 6px 16px;
+    border-radius: 18px;
+    text-decoration: none;
+    font-size: 0.8rem;
+    border: 1px solid rgba(255,255,255,0.25);
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-align: center;
+}
+.ashram-247-channel-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* ── Section card ── */
+.satsang-section {
+    background: #fff; border-radius: 16px; padding: 1.75rem;
+    border: 1px solid #f0e6d9; box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+}
+
+.satsang-section-title {
+    font-size: 1.2rem; color: #8B0000; font-family: Georgia, serif;
+    font-weight: 700; margin: 0 0 0.35rem;
+    display: flex; align-items: center; gap: 10px;
+}
+
+.event-count-badge {
+    font-size: 0.78rem; background: #fff3e0; color: #FF6600;
+    border: 1px solid #ffb74d; padding: 2px 10px;
+    border-radius: 12px; font-family: sans-serif; font-weight: 600;
+}
+
+.satsang-section-sub { font-size: 0.85rem; color: #888; margin: 0 0 1.25rem; font-style: italic; }
+.satsang-loader { display: flex; flex-direction: column; align-items: center; gap: 1rem; padding: 2rem; color: #888; }
+
+/* ══════════════════════════════
+   CALENDAR
+   ══════════════════════════════ */
+.satsang-calendar {
+    max-width: 660px; margin: 0 auto;
+    background: #fff9f0;
+    border: 2px solid #d4a84b;
+    border-radius: 16px; overflow: hidden;
+    box-shadow: 0 4px 20px rgba(139,90,0,0.12);
+}
+
+.cal-header {
+    display: flex; align-items: center; justify-content: space-between;
     background: linear-gradient(135deg, #7a1a1a, #a52a2a);
     padding: 14px 20px;
 }
 
 .cal-nav-btn {
-    background: rgba(255,255,255,0.15);
-    border: 1px solid rgba(255,255,255,0.3);
-    border-radius: 8px;
-    width: 36px;
-    height: 36px;
-    font-size: 1.3rem;
-    cursor: pointer;
-    color: #fff;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 8px; width: 36px; height: 36px; font-size: 1.3rem;
+    cursor: pointer; color: #fff; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center;
 }
 .cal-nav-btn:hover { background: rgba(255,255,255,0.3); }
 
 .cal-month-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 1.15rem;
-    font-weight: 700;
-    color: #fff;
-    font-family: Georgia, serif;
+    display: flex; align-items: center; gap: 12px;
+    font-size: 1.15rem; font-weight: 700; color: #fff; font-family: Georgia, serif;
 }
 
 .cal-today-btn {
-    font-size: 0.72rem;
-    padding: 3px 10px;
-    border: 1px solid rgba(255,255,255,0.5);
-    border-radius: 12px;
-    background: transparent;
-    color: #ffd080;
-    cursor: pointer;
-    transition: all 0.2s;
+    font-size: 0.72rem; padding: 3px 10px;
+    border: 1px solid rgba(255,255,255,0.5); border-radius: 12px;
+    background: transparent; color: #ffd080; cursor: pointer; transition: all 0.2s;
 }
 .cal-today-btn:hover { background: rgba(255,255,255,0.2); }
 
-/* Day-label row */
 .cal-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0;
-    padding: 0 12px 12px;
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 0; padding: 0 12px 8px;
 }
 
 .cal-day-label {
-    text-align: center;
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #8b5e00;
-    padding: 10px 0 6px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    border-bottom: 1px solid #e8c880;
-    margin-bottom: 6px;
+    text-align: center; font-size: 0.72rem; font-weight: 700; color: #8b5e00;
+    padding: 10px 0 6px; text-transform: uppercase; letter-spacing: 0.5px;
+    border-bottom: 1px solid #e8c880; margin-bottom: 6px;
 }
 
-/* Day cells */
 .cal-cell {
-    min-height: 52px;
-    border-radius: 10px;
-    padding: 4px 2px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    border: 1.5px solid transparent;
-    transition: all 0.15s;
-    cursor: default;
-    margin: 2px;
+    min-height: 52px; border-radius: 10px; padding: 4px 2px;
+    display: flex; flex-direction: column; align-items: center;
+    border: 1.5px solid transparent; transition: all 0.15s;
+    cursor: default; margin: 2px; position: relative;
 }
 
 .cal-cell.has-events {
     background: linear-gradient(135deg, #fff3d0, #fff9f0);
-    border-color: #d4a84b;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(139, 90, 0, 0.1);
+    border-color: #d4a84b; cursor: pointer;
+    box-shadow: 0 2px 6px rgba(139,90,0,0.1);
 }
 .cal-cell.has-events:hover {
     background: linear-gradient(135deg, #ffe8a0, #fff3d0);
-    border-color: #c8a060;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(139, 90, 0, 0.18);
-}
-
-.cal-cell.today .cal-day-num {
-    background: #8B0000;
-    color: #fff;
-    border-radius: 50%;
-    width: 26px;
-    height: 26px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
+    border-color: #c8a060; transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(139,90,0,0.18);
 }
 
 .cal-cell.selected {
-    background: #fff0d0;
-    border-color: #8B0000;
-    box-shadow: 0 0 0 2px #8B000040;
+    background: #fff0d0; border-color: #8B0000;
+    box-shadow: 0 0 0 2px rgba(139,0,0,0.25);
 }
 
 .cal-cell.empty { border: none; background: transparent; box-shadow: none; }
 
 .cal-day-num {
-    font-size: 0.88rem;
-    font-weight: 600;
-    color: #3a2000;
-    line-height: 26px;
-    width: 26px;
-    height: 26px;
-    text-align: center;
+    font-size: 0.88rem; font-weight: 600; color: #3a2000;
+    line-height: 26px; width: 26px; height: 26px; text-align: center; border-radius: 50%;
 }
 
-.cal-dots {
-    display: flex;
-    gap: 3px;
+.today-num {
+    background: #8B0000 !important; color: #fff !important; font-weight: 700;
+}
+
+/* Event count number badge */
+.cal-event-count {
+    background: #8B0000;
+    color: #fff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    border-radius: 10px;
+    padding: 1px 6px;
     margin-top: 3px;
-    flex-wrap: wrap;
-    justify-content: center;
+    min-width: 18px;
+    text-align: center;
+    line-height: 1.4;
 }
 
-.cal-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.cal-dot.status-upcoming  { background: #2e7d32; }
-.cal-dot.status-live-now  { background: #e65100; }
-.cal-dot.status-completed { background: #bdbdbd; }
-
-/* Legend inside the calendar frame */
+/* Legend */
 .cal-legend {
-    display: flex;
-    gap: 1.5rem;
-    justify-content: center;
-    padding: 10px 0 14px;
-    border-top: 1px solid #e8c880;
-    margin: 4px 12px 0;
+    display: flex; gap: 1.5rem; justify-content: center;
+    padding: 8px 0 12px;
+    border-top: 1px solid #e8c880; margin: 4px 12px 0;
+    flex-wrap: wrap;
 }
 
 .legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 0.78rem;
-    color: #8b5e00;
-    font-weight: 500;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; color: #8b5e00; font-weight: 500;
 }
 
-/* ── Table section header ── */
+.cal-event-count-sample {
+    background: #8B0000; color: #fff; font-size: 0.68rem;
+    font-weight: 800; border-radius: 10px; padding: 1px 6px; min-width: 18px; text-align: center;
+}
+
+.today-sample {
+    background: #8B0000; color: #fff; font-size: 0.78rem;
+    font-weight: 700; border-radius: 50%; width: 22px; height: 22px;
+    display: flex; align-items: center; justify-content: center;
+}
+
+.today-legend { gap: 6px; }
+
+/* ── Table header row ── */
 .satsang-table-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
-    gap: 0.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;
 }
 
 .satsang-submit-btn-sm {
-    background: #8B0000;
-    color: #fff;
-    padding: 6px 14px;
-    border-radius: 16px;
-    text-decoration: none;
-    font-size: 0.82rem;
-    font-weight: 600;
-    transition: all 0.2s;
+    background: #8B0000; color: #fff; padding: 6px 14px;
+    border-radius: 16px; text-decoration: none; font-size: 0.82rem; font-weight: 600;
 }
 .satsang-submit-btn-sm:hover { background: #a52a2a; }
 
 /* ── Filters ── */
-.satsang-filters {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-    margin-bottom: 1.25rem;
-    align-items: flex-end;
-}
+.satsang-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 1.25rem; align-items: flex-end; }
 
-.filter-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
 
-.filter-group label {
-    font-size: 0.72rem;
-    font-weight: 700;
-    color: #8b5e00;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+.filter-group label { font-size: 0.72rem; font-weight: 700; color: #8b5e00; text-transform: uppercase; letter-spacing: 0.5px; }
 
 .filter-group select {
-    padding: 5px 8px;
-    border: 1px solid #e8c880;
-    border-radius: 8px;
-    background: #fff9f0;
-    font-size: 0.82rem;
-    color: #3a2000;
-    cursor: pointer;
-    outline: none;
+    padding: 5px 8px; border: 1px solid #e8c880; border-radius: 8px;
+    background: #fff9f0; font-size: 0.82rem; color: #3a2000; cursor: pointer; outline: none;
 }
 .filter-group select:focus { border-color: #8B0000; }
 
 .filter-clear-btn {
-    padding: 5px 12px;
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fca5a5;
-    border-radius: 8px;
-    font-size: 0.82rem;
-    cursor: pointer;
-    align-self: flex-end;
+    padding: 5px 12px; background: #fee2e2; color: #991b1b;
+    border: 1px solid #fca5a5; border-radius: 8px; font-size: 0.82rem;
+    cursor: pointer; align-self: flex-end;
 }
-.filter-clear-btn:hover { background: #fecaca; }
 
 /* ── Table ── */
-.satsang-table-wrapper {
-    width: 100%;
-    overflow-x: hidden;
-}
+.satsang-table-wrapper { width: 100%; overflow-x: hidden; }
 
-.satsang-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.82rem;
-    table-layout: fixed;
-}
+.satsang-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; table-layout: fixed; }
 
-/* Column widths */
+/* Column widths — 10 columns now (status removed) */
 .satsang-table th:nth-child(1)  { width: 28px; }   /* # */
-.satsang-table th:nth-child(2)  { width: 64px; }   /* Country */
-.satsang-table th:nth-child(3)  { width: 140px; }  /* Event Name */
-.satsang-table th:nth-child(4)  { width: 100px; }  /* IST */
-.satsang-table th:nth-child(5)  { width: 100px; }  /* GMT/EST */
-.satsang-table th:nth-child(6)  { width: 80px; }   /* Sankalpa */
-.satsang-table th:nth-child(7)  { width: 72px; }   /* Frequency */
-.satsang-table th:nth-child(8)  { width: 68px; }   /* Platform */
+.satsang-table th:nth-child(2)  { width: 60px; }   /* Country */
+.satsang-table th:nth-child(3)  { width: 150px; }  /* Event Name */
+.satsang-table th:nth-child(4)  { width: 105px; }  /* IST */
+.satsang-table th:nth-child(5)  { width: 105px; }  /* UK Time */
+.satsang-table th:nth-child(6)  { width: 105px; }  /* US Central */
+.satsang-table th:nth-child(7)  { width: 80px; }   /* Frequency */
+.satsang-table th:nth-child(8)  { width: 70px; }   /* Platform */
 .satsang-table th:nth-child(9)  { width: 90px; }   /* Host */
-.satsang-table th:nth-child(10) { width: 68px; }   /* Status */
-.satsang-table th:nth-child(11) { width: 76px; }   /* Join/QR */
+.satsang-table th:nth-child(10) { width: 80px; }   /* Join/QR */
 
 .satsang-table th {
-    background: #7a1a1a;
-    color: #fff;
-    padding: 10px 8px;
-    text-align: left;
-    font-size: 0.72rem;
-    font-weight: 700;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    background: #7a1a1a; color: #fff; padding: 10px 8px;
+    text-align: left; font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 
 .satsang-table td {
-    padding: 10px 8px;
-    border-bottom: 1px solid #f5ede0;
-    vertical-align: middle;
-    color: #3a2000;
-    overflow: hidden;
-    word-break: break-word;
+    padding: 10px 8px; border-bottom: 1px solid #f5ede0;
+    vertical-align: middle; color: #3a2000; overflow: hidden; word-break: break-word;
 }
 
 .satsang-table tbody tr:hover { background: #fff9f0; }
 .satsang-table tbody tr:last-child td { border-bottom: none; }
-.row-live { background: #fff8f0 !important; }
 
-/* Cell-specific */
-.td-num    { color: #aaa; font-size: 0.72rem; text-align: center; }
+/* 24/7 row */
+.row-247 { background: linear-gradient(90deg, #fff8f0, #fff9f0) !important; }
+.row-247 td { border-bottom: 2px solid #e8c880 !important; }
 
+.badge-247 {
+    display: block; font-size: 0.68rem; color: #e65100;
+    font-weight: 700; animation: pulse 1.5s infinite; margin-top: 3px;
+}
+
+.freq-247 { background: #fff0e0 !important; color: #e65100 !important; border-color: #ffb74d !important; }
+
+.join-btn-247 { background: #FF0000 !important; }
+.join-btn-247:hover { background: #cc0000 !important; }
+
+/* Cell types */
+.td-num { color: #aaa; font-size: 0.72rem; text-align: center; }
 .td-country { font-size: 0.82rem; text-align: center; }
 .td-country-name { display: block; font-size: 0.7rem; color: #888; margin-top: 2px; }
-
 .td-name strong { display: block; color: #3a2000; font-size: 0.82rem; line-height: 1.4; }
 
-.live-pulse {
-    display: block;
-    font-size: 0.68rem;
-    color: #e65100;
-    font-weight: 700;
-    animation: pulse 1.2s infinite;
-}
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-
-/* IST: date + time on separate lines */
-.td-time     { font-size: 0.75rem; }
+.td-time { font-size: 0.75rem; }
 .td-date-line { display: block; font-weight: 600; color: #3a2000; line-height: 1.5; }
 .td-time-line { display: block; color: #8B0000; font-weight: 600; font-size: 0.72rem; line-height: 1.5; }
 
-/* GMT/EST: no year, two lines */
-.td-tz   { font-size: 0.72rem; }
+.td-tz { font-size: 0.72rem; }
 .tz-line { display: block; color: #555; line-height: 1.6; }
 
-.td-sankalpa { font-size: 0.75rem; color: #5a3a1a; }
-
 .freq-badge {
-    background: #f0f9ff;
-    color: #0369a1;
-    border: 1px solid #bae6fd;
-    border-radius: 10px;
-    padding: 2px 6px;
-    font-size: 0.68rem;
-    font-weight: 600;
-    display: inline-block;
-    line-height: 1.5;
-    white-space: normal;
+    background: #f0f9ff; color: #0369a1; border: 1px solid #bae6fd;
+    border-radius: 10px; padding: 2px 6px; font-size: 0.68rem;
+    font-weight: 600; display: inline-block; line-height: 1.5; white-space: normal;
 }
 
-.status-badge {
-    border-radius: 10px;
-    padding: 2px 6px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    white-space: nowrap;
-    display: inline-block;
-}
-
-.join-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-}
+.join-actions { display: flex; flex-direction: column; gap: 4px; }
 
 .join-btn {
-    background: #8B0000;
-    color: #fff;
-    padding: 4px 8px;
-    border-radius: 6px;
-    text-decoration: none;
-    font-size: 0.72rem;
-    font-weight: 600;
-    white-space: nowrap;
-    display: inline-block;
-    transition: all 0.2s;
+    background: #8B0000; color: #fff; padding: 4px 8px; border-radius: 6px;
+    text-decoration: none; font-size: 0.72rem; font-weight: 600;
+    white-space: nowrap; display: inline-block; transition: all 0.2s;
 }
 .join-btn:hover { background: #a52a2a; }
 
 .qr-btn {
-    background: #fff9f0;
-    border: 1px solid #e8c880;
-    color: #8b5e00;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 0.68rem;
-    cursor: pointer;
-    white-space: nowrap;
-    transition: all 0.2s;
+    background: #fff9f0; border: 1px solid #e8c880; color: #8b5e00;
+    padding: 3px 8px; border-radius: 6px; font-size: 0.68rem;
+    cursor: pointer; white-space: nowrap; transition: all 0.2s; text-decoration: none; display: inline-block;
 }
 .qr-btn:hover { background: #fff3d0; }
 
 .no-link { color: #aaa; font-size: 0.75rem; }
 
-.satsang-empty {
-    text-align: center;
-    padding: 3rem;
-    color: #888;
-}
+.satsang-empty { text-align: center; padding: 3rem; color: #888; }
 .satsang-empty a { color: #8B0000; font-weight: 600; }
 
 /* ── QR Modal ── */
-.qr-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-}
-
-.qr-modal {
-    background: #fff9f0;
-    border-radius: 16px;
-    padding: 28px 32px;
-    text-align: center;
-    max-width: 300px;
-    width: 90%;
-    position: relative;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.25);
-    border: 1px solid #e8c880;
-}
-
-.qr-modal-close {
-    position: absolute;
-    top: 12px; right: 14px;
-    background: none; border: none;
-    font-size: 1.1rem; cursor: pointer; color: #888;
-}
-
-.qr-modal-title {
-    font-size: 1rem;
-    color: #8B0000;
-    font-family: Georgia, serif;
-    margin: 0 0 1rem;
-}
-
+.qr-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+.qr-modal { background: #fff9f0; border-radius: 16px; padding: 28px 32px; text-align: center; max-width: 300px; width: 90%; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,0.25); border: 1px solid #e8c880; }
+.qr-modal-close { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #888; }
+.qr-modal-title { font-size: 1rem; color: #8B0000; font-family: Georgia, serif; margin: 0 0 1rem; }
 .qr-canvas { border-radius: 8px; border: 2px solid #e8c880; }
-
-.qr-modal-hint {
-    font-size: 0.8rem; color: #888;
-    margin: 0.5rem 0; font-style: italic;
-}
-
-.qr-join-btn {
-    display: inline-block;
-    background: #8B0000; color: #fff;
-    padding: 8px 20px; border-radius: 20px;
-    text-decoration: none; font-size: 0.85rem; font-weight: 600;
-    margin-top: 0.5rem; transition: all 0.2s;
-}
+.qr-modal-hint { font-size: 0.8rem; color: #888; margin: 0.5rem 0; font-style: italic; }
+.qr-join-btn { display: inline-block; background: #8B0000; color: #fff; padding: 8px 20px; border-radius: 20px; text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-top: 0.5rem; }
 .qr-join-btn:hover { background: #a52a2a; }
 
 /* ── Why Join ── */
-.satsang-why-section {
-    background: linear-gradient(135deg, #7a1a1a, #a52a2a);
-    border-radius: 20px;
-    padding: 2.5rem 2rem;
-}
-
+.satsang-why-section { background: linear-gradient(135deg, #7a1a1a, #a52a2a); border-radius: 20px; padding: 2.5rem 2rem; }
 .satsang-why-inner { max-width: 900px; margin: 0 auto; }
-
-.satsang-why-title {
-    font-size: 1.5rem; color: #ffd080;
-    font-family: Georgia, serif; font-weight: 700;
-    margin: 0 0 0.75rem; text-align: center;
-}
-
-.satsang-why-lead {
-    font-size: 0.95rem; color: rgba(255,255,255,0.9);
-    line-height: 1.75; text-align: center;
-    max-width: 720px; margin: 0 auto 2rem;
-}
-
-.satsang-why-cards {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem; margin-bottom: 2rem;
-}
-
-.why-card {
-    background: rgba(255,255,255,0.1);
-    border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 12px; padding: 1.25rem;
-}
-
+.satsang-why-title { font-size: 1.5rem; color: #ffd080; font-family: Georgia, serif; font-weight: 700; margin: 0 0 0.75rem; text-align: center; }
+.satsang-why-lead { font-size: 0.95rem; color: rgba(255,255,255,0.9); line-height: 1.75; text-align: center; max-width: 720px; margin: 0 auto 2rem; }
+.satsang-why-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem; }
+.why-card { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; padding: 1.25rem; }
 .why-icon { font-size: 1.5rem; display: block; margin-bottom: 0.5rem; }
-
-.why-card h3 {
-    font-size: 1rem; color: #ffd080;
-    font-family: Georgia, serif; margin: 0 0 0.5rem;
-}
-
-.why-card p {
-    font-size: 0.85rem; color: rgba(255,255,255,0.85);
-    line-height: 1.65; margin: 0;
-}
-
+.why-card h3 { font-size: 1rem; color: #ffd080; font-family: Georgia, serif; margin: 0 0 0.5rem; }
+.why-card p { font-size: 0.85rem; color: rgba(255,255,255,0.85); line-height: 1.65; margin: 0; }
 .satsang-cta-block { text-align: center; }
-
-.satsang-cta-text {
-    font-size: 1.05rem; color: rgba(255,255,255,0.9);
-    font-style: italic; margin-bottom: 1.25rem;
-    font-family: Georgia, serif;
-}
-
-.satsang-cta-buttons {
-    display: flex; gap: 12px;
-    justify-content: center; flex-wrap: wrap;
-}
-
-.cta-btn {
-    padding: 10px 22px; border-radius: 22px;
-    text-decoration: none; font-size: 0.9rem; font-weight: 700;
-    transition: all 0.2s;
-}
-.cta-primary  { background: #ffd080; color: #7a1a1a; }
+.satsang-cta-text { font-size: 1.05rem; color: rgba(255,255,255,0.9); font-style: italic; margin-bottom: 1.25rem; font-family: Georgia, serif; }
+.satsang-cta-buttons { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.cta-btn { padding: 10px 22px; border-radius: 22px; text-decoration: none; font-size: 0.9rem; font-weight: 700; transition: all 0.2s; }
+.cta-primary { background: #ffd080; color: #7a1a1a; }
 .cta-primary:hover { background: #fff; }
 .cta-secondary { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.4); }
 .cta-secondary:hover { background: rgba(255,255,255,0.25); }
@@ -631,58 +424,34 @@
 .cta-ghost:hover { color: #fff; }
 
 /* ── Logged-in tools ── */
-.satsang-logged-links {
-    background: #fff; border-radius: 14px;
-    padding: 1.25rem 1.5rem;
-    border: 1px solid #f0e6d9; text-align: center;
-}
-
-.satsang-logged-title {
-    font-size: 0.82rem; font-weight: 700;
-    color: #8b5e00; text-transform: uppercase;
-    letter-spacing: 0.5px; margin-bottom: 0.85rem;
-}
-
-.satsang-tool-links {
-    display: flex; gap: 10px;
-    justify-content: center; flex-wrap: wrap;
-}
-
-.tool-link {
-    background: #fff9f0; border: 1px solid #e8c880;
-    color: #5a3010; padding: 8px 18px; border-radius: 20px;
-    text-decoration: none; font-size: 0.85rem; font-weight: 600;
-    transition: all 0.2s;
-}
+.satsang-logged-links { background: #fff; border-radius: 14px; padding: 1.25rem 1.5rem; border: 1px solid #f0e6d9; text-align: center; }
+.satsang-logged-title { font-size: 0.82rem; font-weight: 700; color: #8b5e00; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.85rem; }
+.satsang-tool-links { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.tool-link { background: #fff9f0; border: 1px solid #e8c880; color: #5a3010; padding: 8px 18px; border-radius: 20px; text-decoration: none; font-size: 0.85rem; font-weight: 600; transition: all 0.2s; }
 .tool-link:hover { background: #8B0000; color: #fff; border-color: #8B0000; }
 
 /* ── Responsive ── */
 @media (max-width: 900px) {
-    .satsang-table th:nth-child(5),
-    .satsang-table td:nth-child(5) { display: none; } /* GMT/EST */
-    .satsang-table th:nth-child(6),
-    .satsang-table td:nth-child(6) { display: none; } /* Sankalpa */
+    .satsang-table th:nth-child(6), .satsang-table td:nth-child(6) { display: none; } /* US Central */
 }
 
 @media (max-width: 768px) {
     .satsang-header-inner { flex-direction: column; gap: 0.5rem; }
-    .satsang-container { padding: 1rem; gap: 1.5rem; }
+    .satsang-container { padding: 1rem; gap: 1rem; }
     .satsang-section { padding: 1.25rem 1rem; }
     .satsang-why-cards { grid-template-columns: 1fr; }
     .satsang-filters { flex-direction: column; }
     .filter-group select { width: 100%; }
     .satsang-cta-buttons { flex-direction: column; align-items: center; }
     .satsang-why-section { padding: 1.5rem 1rem; }
+    .ashram-247-banner { flex-direction: column; }
+    .ashram-247-right { align-items: flex-start; flex-direction: row; }
 
-    .satsang-table th:nth-child(9),
-    .satsang-table td:nth-child(9) { display: none; } /* Host */
-    .satsang-table th:nth-child(8),
-    .satsang-table td:nth-child(8) { display: none; } /* Platform */
+    .satsang-table th:nth-child(5), .satsang-table td:nth-child(5) { display: none; } /* UK Time */
+    .satsang-table th:nth-child(9), .satsang-table td:nth-child(9) { display: none; } /* Host */
 }
 
 @media (max-width: 480px) {
-    .satsang-table th:nth-child(4),
-    .satsang-table td:nth-child(4) { display: none; } /* IST time */
-    .satsang-table th:nth-child(7),
-    .satsang-table td:nth-child(7) { display: none; } /* Frequency */
+    .satsang-table th:nth-child(7), .satsang-table td:nth-child(7) { display: none; } /* Frequency */
+    .satsang-table th:nth-child(8), .satsang-table td:nth-child(8) { display: none; } /* Platform */
 }
