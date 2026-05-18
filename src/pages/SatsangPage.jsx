@@ -442,7 +442,7 @@ const SatsangPage = () => {
                                         <td className="td-tz"><span className="tz-line">Anytime</span></td>
                                         <td><span className="freq-badge freq-247">24/7</span></td>
                                         <td>YouTube</td>
-                                        <td>YR Ashram</td>
+                                        <td>Yogi Ramsuratkumar Glimpses</td>
                                         <td className="td-join">
                                             <div className="join-actions">
                                                 <a href={ASHRAM_247.meeting_url} target="_blank" rel="noopener noreferrer" className="join-btn join-btn-247">▶ Watch</a>
