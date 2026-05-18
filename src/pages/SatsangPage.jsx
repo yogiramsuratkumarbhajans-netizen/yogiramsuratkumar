@@ -4,47 +4,19 @@ import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
 import './SatsangPage.css';
 
-// ── All supported timezones ───────────────────────────────────────
-export const TIMEZONES = [
-    { label: 'India (IST)',           tz: 'Asia/Kolkata',        abbr: 'IST'  },
-    { label: 'UK (GMT/BST)',          tz: 'Europe/London',       abbr: 'UK'   },
-    { label: 'US Eastern (EST/EDT)',  tz: 'America/New_York',    abbr: 'ET'   },
-    { label: 'US Central (CST/CDT)', tz: 'America/Chicago',     abbr: 'CT'   },
-    { label: 'US Pacific (PST/PDT)', tz: 'America/Los_Angeles', abbr: 'PT'   },
-    { label: 'UAE (GST)',             tz: 'Asia/Dubai',          abbr: 'GST'  },
-    { label: 'Singapore (SGT)',       tz: 'Asia/Singapore',      abbr: 'SGT'  },
-    { label: 'Australia Sydney',      tz: 'Australia/Sydney',    abbr: 'AEST' },
-    { label: 'Germany (CET/CEST)',    tz: 'Europe/Berlin',       abbr: 'CET'  },
-];
-
-// ── Convert a UTC ISO string to display in a given IANA timezone ─
-const displayInTZ = (utcStr, ianaZone, opts = {}) => {
-    const d = new Date(utcStr);
-    if (isNaN(d)) return '—';
-    return new Intl.DateTimeFormat('en-GB', {
-        timeZone: ianaZone,
-        day: '2-digit', month: 'short', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', hour12: true,
-        ...opts
-    }).format(d);
-};
-
+// ── Timezone display helpers ──────────────────────────────────────
 const displayTimeOnly = (utcStr, ianaZone) => {
     const d = new Date(utcStr);
     if (isNaN(d)) return '—';
-    // Get the tz abbreviation dynamically (handles BST vs GMT, CDT vs CST etc.)
     const parts = new Intl.DateTimeFormat('en-GB', {
         timeZone: ianaZone,
         day: '2-digit', month: 'short',
         hour: '2-digit', minute: '2-digit', hour12: false,
         timeZoneName: 'short'
     }).formatToParts(d);
-    const day  = parts.find(p => p.type === 'day')?.value;
-    const mon  = parts.find(p => p.type === 'month')?.value;
-    const hr   = parts.find(p => p.type === 'hour')?.value;
-    const min  = parts.find(p => p.type === 'minute')?.value;
-    const tzn  = parts.find(p => p.type === 'timeZoneName')?.value || '';
-    return `${day} ${mon}, ${hr}:${min} ${tzn}`;
+    const get = (t) => parts.find(p => p.type === t)?.value || '';
+    const hr  = get('hour') === '24' ? '00' : get('hour');
+    return `${get('day')} ${get('month')}, ${hr}:${get('minute')} ${get('timeZoneName')}`;
 };
 
 const displayIST = (utcStr) => {
@@ -59,95 +31,143 @@ const displayIST = (utcStr) => {
     return { datePart, timePart };
 };
 
-// ── Date key helper ───────────────────────────────────────────────
-const toDateKey = (d) => {
-    const y   = d.getFullYear();
-    const m   = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
+// ── Get the IST date key (YYYY-MM-DD) for a UTC datetime ─────────
+// This is the key insight: we place the event on the calendar date
+// it falls on IN IST, not in UTC local time.
+const getISTDateKey = (utcStr) => {
+    const d = new Date(utcStr);
+    if (isNaN(d)) return '';
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d);
+    const get = (t) => parts.find(p => p.type === t)?.value || '00';
+    return `${get('year')}-${get('month')}-${get('day')}`;
 };
 
-// ── Recurring date expansion ──────────────────────────────────────
+// ── Get the IST day-of-week (0=Sun...6=Sat) for a UTC datetime ───
+const getISTDayOfWeek = (utcStr) => {
+    const d = new Date(utcStr);
+    if (isNaN(d)) return -1;
+    // Get the IST date then find day of week
+    const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Kolkata',
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(d);
+    const get = (t) => parseInt(parts.find(p => p.type === t)?.value || '0');
+    const istDate = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
+    return istDate.getUTCDay();
+};
+
+// ── Build date key for a calendar cell ───────────────────────────
+const makeDateKey = (year, month, day) => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+};
+
+// ── Recurring event expansion — generates UTC datetimes ──────────
+// Returns array of UTC ISO strings for upcoming occurrences
 const DAY_MAP = {
     'Every Monday': 1, 'Every Tuesday': 2, 'Every Wednesday': 3,
     'Every Thursday': 4, 'Every Friday': 5, 'Every Saturday': 6, 'Every Sunday': 0
 };
 
-const getUpcomingDates = (ev, weeksAhead = 14) => {
+const getUpcomingOccurrences = (ev, weeksAhead = 14) => {
     const freq = (ev.frequency || '').trim();
-    const base = new Date(ev.event_datetime);
+    const base = new Date(ev.event_datetime); // stored as UTC
     if (isNaN(base)) return [];
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    const until = new Date(todayStart);
-    until.setDate(until.getDate() + weeksAhead * 7);
+    const todayUTC = new Date();
+    todayUTC.setUTCHours(0, 0, 0, 0);
+
+    const untilUTC = new Date(todayUTC);
+    untilUTC.setDate(untilUTC.getDate() + weeksAhead * 7);
 
     const baseHour = base.getUTCHours();
     const baseMin  = base.getUTCMinutes();
+    const results  = [];
 
     if (freq === 'Daily') {
-        const results = [];
-        const d = new Date(todayStart);
-        const limit = new Date(todayStart);
+        const d = new Date(todayUTC);
+        const limit = new Date(todayUTC);
         limit.setDate(limit.getDate() + 30);
         while (d <= limit) {
             const dt = new Date(d);
             dt.setUTCHours(baseHour, baseMin, 0, 0);
-            results.push(new Date(dt));
-            d.setDate(d.getDate() + 1);
+            results.push(dt.toISOString());
+            d.setUTCDate(d.getUTCDate() + 1);
         }
         return results;
     }
 
     if (DAY_MAP[freq] !== undefined) {
-        const targetDay = DAY_MAP[freq];
-        const results = [];
-        const d = new Date(todayStart);
-        while (d.getDay() !== targetDay) d.setDate(d.getDate() + 1);
-        while (d <= until) {
-            const dt = new Date(d);
-            dt.setUTCHours(baseHour, baseMin, 0, 0);
-            results.push(new Date(dt));
-            d.setDate(d.getDate() + 7);
+        // targetDay is the day in IST that the event falls on
+        // (e.g. Monday 8PM UK = Tuesday IST, so we find Tuesdays in IST)
+        // But: the base UTC datetime already encodes the correct IST day.
+        // We find what IST day-of-week the base falls on,
+        // then generate that IST day repeatedly.
+        const istDayOfBase = getISTDayOfWeek(base.toISOString());
+
+        // Start from today (in IST)
+        // Find first occurrence in IST
+        const todayISTKey = getISTDateKey(todayUTC.toISOString());
+        const [ty, tm, tdd] = todayISTKey.split('-').map(Number);
+        const todayIST = new Date(Date.UTC(ty, tm - 1, tdd));
+        let dIST = new Date(todayIST);
+        // Advance to first IST day matching
+        while (dIST.getUTCDay() !== istDayOfBase) dIST.setUTCDate(dIST.getUTCDate() + 1);
+
+        while (dIST <= untilUTC && results.length < weeksAhead) {
+            // Build a UTC datetime: take this IST date + base UTC hour/min
+            // Since IST = UTC+5:30, IST midnight = UTC prev day 18:30
+            // Easier: combine the IST date with the base time offset
+            const occurrence = new Date(dIST);
+            occurrence.setUTCHours(baseHour, baseMin, 0, 0);
+            results.push(occurrence.toISOString());
+            dIST.setUTCDate(dIST.getUTCDate() + 7);
         }
         return results;
     }
 
     if (freq === 'Weekly') {
-        const results = [];
         const d = new Date(base);
-        while (d < todayStart) d.setDate(d.getDate() + 7);
-        while (d <= until) { results.push(new Date(d)); d.setDate(d.getDate() + 7); }
+        while (d < todayUTC) d.setUTCDate(d.getUTCDate() + 7);
+        while (d <= untilUTC && results.length < weeksAhead) {
+            results.push(d.toISOString());
+            d.setUTCDate(d.getUTCDate() + 7);
+        }
         return results;
     }
 
-    if (base >= todayStart) return [base];
-    return [];
+    // One-time / Monthly
+    if (base >= todayUTC) results.push(base.toISOString());
+    return results;
 };
 
+// ── Build calendar map: IST dateKey → [events] ───────────────────
 const buildCalendarMap = (events) => {
     const map = {};
     events.forEach(ev => {
-        getUpcomingDates(ev, 16).forEach(d => {
-            const key = toDateKey(d);
+        getUpcomingOccurrences(ev, 16).forEach(utcStr => {
+            // Place on the IST date, not UTC date
+            const key = getISTDateKey(utcStr);
             if (!map[key]) map[key] = [];
-            map[key].push(ev);
+            map[key].push({ ev, utcStr });
         });
     });
     return map;
 };
 
-const eventOccursOnDate = (ev, targetDate) => {
-    const targetKey = toDateKey(new Date(targetDate));
-    return getUpcomingDates(ev, 16).some(d => toDateKey(d) === targetKey);
+// ── Check if event occurs on a given IST date ────────────────────
+const eventOccursOnISTDate = (ev, targetDate) => {
+    const targetKey = getISTDateKey(new Date(targetDate).toISOString());
+    return getUpcomingOccurrences(ev, 16).some(utcStr => getISTDateKey(utcStr) === targetKey);
 };
 
-const buildDisplayUTC = (ev, targetDate) => {
-    const base = new Date(ev.event_datetime);
-    const d    = new Date(targetDate);
-    d.setUTCHours(base.getUTCHours(), base.getUTCMinutes(), 0, 0);
-    return d.toISOString();
+// ── Get the UTC string for an event on a specific IST date ───────
+const getUTCForISTDate = (ev, targetDate) => {
+    const targetKey = getISTDateKey(new Date(targetDate).toISOString());
+    const match = getUpcomingOccurrences(ev, 16).find(utcStr => getISTDateKey(utcStr) === targetKey);
+    return match || ev.event_datetime;
 };
 
 // ── Constants ─────────────────────────────────────────────────────
@@ -184,11 +204,10 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
     const month = currentMonth.getMonth();
     const firstDay    = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const todayKey    = toDateKey(new Date());
-    const selectedKey = selectedDate ? toDateKey(new Date(selectedDate)) : null;
 
-    const getCellKey = (day) =>
-        `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    // Today's IST date key
+    const todayKey    = getISTDateKey(new Date().toISOString());
+    const selectedKey = selectedDate ? getISTDateKey(new Date(selectedDate).toISOString()) : null;
 
     const monthName = currentMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -207,16 +226,17 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
                 {days.map(d => <div key={d} className="cal-day-label">{d}</div>)}
                 {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day   = i + 1;
-                    const key   = getCellKey(day);
-                    const count = (calendarMap[key] || []).length;
+                    const day = i + 1;
+                    const key = makeDateKey(year, month, day);
+                    const items    = calendarMap[key] || [];
+                    const count    = items.length;
                     const isToday    = key === todayKey;
                     const isSelected = key === selectedKey;
                     return (
                         <div key={day}
                             className={`cal-cell${count>0?' has-events':''}${isSelected?' selected':''}`}
                             onClick={() => count > 0 && onDateClick(new Date(year, month, day))}
-                            title={count > 0 ? `${count} event${count>1?'s':''}` : ''}
+                            title={count > 0 ? items.map(i => i.ev.event_name).join(', ') : ''}
                         >
                             <span className={`cal-day-num${isToday?' today-num':''}`}>{day}</span>
                             {count > 0 && <span className="cal-event-count">{count}</span>}
@@ -227,7 +247,7 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
             <div className="cal-legend">
                 <span className="legend-item">
                     <span className="legend-count-sample">2</span>
-                    <span>= events on that day</span>
+                    <span>= events on that day (IST)</span>
                 </span>
                 <span className="legend-item legend-today-item">
                     <span className="legend-today-sample">5</span>
@@ -278,7 +298,7 @@ const SatsangPage = () => {
     };
 
     const filteredEvents = events.filter(ev => {
-        if (selectedDate && !eventOccursOnDate(ev, selectedDate)) return false;
+        if (selectedDate && !eventOccursOnISTDate(ev, selectedDate)) return false;
         if (filterCountry   && ev.country   !== filterCountry)   return false;
         if (filterFrequency && ev.frequency !== filterFrequency) return false;
         if (filterPlatform  && ev.platform  !== filterPlatform)  return false;
@@ -289,10 +309,11 @@ const SatsangPage = () => {
     const uniquePlatforms = [...new Set(events.map(e => e.platform))].sort();
     const uniqueFreqs     = [...new Set(events.map(e => e.frequency))].sort();
 
+    // Get the correct UTC string for display — for selected date, use that day's occurrence
     const getDisplayUTC = (ev) => {
-        if (selectedDate) return buildDisplayUTC(ev, selectedDate);
-        const dates = getUpcomingDates(ev, 14);
-        return dates.length > 0 ? dates[0].toISOString() : ev.event_datetime;
+        if (selectedDate) return getUTCForISTDate(ev, selectedDate);
+        const occs = getUpcomingOccurrences(ev, 14);
+        return occs.length > 0 ? occs[0] : ev.event_datetime;
     };
 
     const selectedLabel = selectedDate
@@ -332,7 +353,7 @@ const SatsangPage = () => {
                 {/* Calendar */}
                 <section className="satsang-section">
                     <h2 className="satsang-section-title">📅 Event Calendar</h2>
-                    <p className="satsang-section-sub">Click on a date with a number to see that day's events below</p>
+                    <p className="satsang-section-sub">Dates shown in IST — click a number to see that day's events</p>
                     {loading
                         ? <div className="satsang-loader"><span className="loader"/><p>Loading...</p></div>
                         : <SatsangCalendar calendarMap={calendarMap} onDateClick={handleDateClick} selectedDate={selectedDate} />
@@ -425,7 +446,6 @@ const SatsangPage = () => {
                                         const hasLink = ev.meeting_url && ev.meeting_url.startsWith('http');
                                         const utc     = getDisplayUTC(ev);
                                         const ist     = displayIST(utc);
-
                                         return (
                                             <tr key={ev.id}>
                                                 <td className="td-num">{idx+1}</td>
