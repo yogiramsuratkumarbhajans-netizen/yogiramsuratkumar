@@ -4,7 +4,7 @@ import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
 import './SatsangPage.css';
 
-// ── Timezone display helpers ──────────────────────────────────────
+// ── Display helpers ───────────────────────────────────────────────
 const displayTimeOnly = (utcStr, ianaZone) => {
     const d = new Date(utcStr);
     if (isNaN(d)) return '—';
@@ -15,7 +15,7 @@ const displayTimeOnly = (utcStr, ianaZone) => {
         timeZoneName: 'short'
     }).formatToParts(d);
     const get = (t) => parts.find(p => p.type === t)?.value || '';
-    const hr  = get('hour') === '24' ? '00' : get('hour');
+    const hr = get('hour') === '24' ? '00' : get('hour');
     return `${get('day')} ${get('month')}, ${hr}:${get('minute')} ${get('timeZoneName')}`;
 };
 
@@ -23,133 +23,106 @@ const displayIST = (utcStr) => {
     const d = new Date(utcStr);
     if (isNaN(d)) return { datePart: '—', timePart: '—' };
     const datePart = new Intl.DateTimeFormat('en-IN', {
-        timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric'
+        timeZone: 'Asia/Kolkata',
+        day: '2-digit', month: 'short', year: 'numeric'
     }).format(d);
     const timePart = new Intl.DateTimeFormat('en-IN', {
-        timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit', minute: '2-digit', hour12: true
     }).format(d) + ' IST';
     return { datePart, timePart };
 };
 
-// ── Get the IST date key (YYYY-MM-DD) for a UTC datetime ─────────
-// This is the key insight: we place the event on the calendar date
-// it falls on IN IST, not in UTC local time.
+// ── IST date key from a UTC string ───────────────────────────────
+// "What date is this moment in India?"
 const getISTDateKey = (utcStr) => {
     const d = new Date(utcStr);
     if (isNaN(d)) return '';
-    const parts = new Intl.DateTimeFormat('en-CA', {
+    return new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Kolkata',
         year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(d);
-    const get = (t) => parts.find(p => p.type === t)?.value || '00';
-    return `${get('year')}-${get('month')}-${get('day')}`;
+    }).format(d); // returns YYYY-MM-DD
 };
 
-// ── Get the IST day-of-week (0=Sun...6=Sat) for a UTC datetime ───
-const getISTDayOfWeek = (utcStr) => {
-    const d = new Date(utcStr);
-    if (isNaN(d)) return -1;
-    // Get the IST date then find day of week
-    const parts = new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Kolkata',
-        year: 'numeric', month: '2-digit', day: '2-digit'
-    }).formatToParts(d);
-    const get = (t) => parseInt(parts.find(p => p.type === t)?.value || '0');
-    const istDate = new Date(Date.UTC(get('year'), get('month') - 1, get('day')));
-    return istDate.getUTCDay();
-};
+const makeDateKey = (year, month, day) =>
+    `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
-// ── Build date key for a calendar cell ───────────────────────────
-const makeDateKey = (year, month, day) => {
-    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
-
-// ── Recurring event expansion — generates UTC datetimes ──────────
-// Returns array of UTC ISO strings for upcoming occurrences
-const DAY_MAP = {
-    'Every Monday': 1, 'Every Tuesday': 2, 'Every Wednesday': 3,
-    'Every Thursday': 4, 'Every Friday': 5, 'Every Saturday': 6, 'Every Sunday': 0
-};
-
+// ── Core: get upcoming occurrences as UTC ISO strings ─────────────
+// Strategy: start from the stored base UTC and add 7 days for weekly,
+// 1 day for daily. No day-of-week guessing — the base itself is correct.
 const getUpcomingOccurrences = (ev, weeksAhead = 14) => {
     const freq = (ev.frequency || '').trim();
-    const base = new Date(ev.event_datetime); // stored as UTC
+    const base = new Date(ev.event_datetime); // stored UTC — always correct
     if (isNaN(base)) return [];
 
-    const todayUTC = new Date();
-    todayUTC.setUTCHours(0, 0, 0, 0);
+    const nowUTC = new Date();
+    const limitUTC = new Date(nowUTC);
+    limitUTC.setDate(limitUTC.getDate() + weeksAhead * 7);
 
-    const untilUTC = new Date(todayUTC);
-    untilUTC.setDate(untilUTC.getDate() + weeksAhead * 7);
-
-    const baseHour = base.getUTCHours();
-    const baseMin  = base.getUTCMinutes();
-    const results  = [];
+    const results = [];
 
     if (freq === 'Daily') {
-        const d = new Date(todayUTC);
-        const limit = new Date(todayUTC);
-        limit.setDate(limit.getDate() + 30);
-        while (d <= limit) {
-            const dt = new Date(d);
-            dt.setUTCHours(baseHour, baseMin, 0, 0);
-            results.push(dt.toISOString());
-            d.setUTCDate(d.getUTCDate() + 1);
-        }
-        return results;
-    }
-
-    if (DAY_MAP[freq] !== undefined) {
-        // targetDay is the day in IST that the event falls on
-        // (e.g. Monday 8PM UK = Tuesday IST, so we find Tuesdays in IST)
-        // But: the base UTC datetime already encodes the correct IST day.
-        // We find what IST day-of-week the base falls on,
-        // then generate that IST day repeatedly.
-        const istDayOfBase = getISTDayOfWeek(base.toISOString());
-
-        // Start from today (in IST)
-        // Find first occurrence in IST
-        const todayISTKey = getISTDateKey(todayUTC.toISOString());
-        const [ty, tm, tdd] = todayISTKey.split('-').map(Number);
-        const todayIST = new Date(Date.UTC(ty, tm - 1, tdd));
-        let dIST = new Date(todayIST);
-        // Advance to first IST day matching
-        while (dIST.getUTCDay() !== istDayOfBase) dIST.setUTCDate(dIST.getUTCDate() + 1);
-
-        while (dIST <= untilUTC && results.length < weeksAhead) {
-            // Build a UTC datetime: take this IST date + base UTC hour/min
-            // Since IST = UTC+5:30, IST midnight = UTC prev day 18:30
-            // Easier: combine the IST date with the base time offset
-            const occurrence = new Date(dIST);
-            occurrence.setUTCHours(baseHour, baseMin, 0, 0);
-            results.push(occurrence.toISOString());
-            dIST.setUTCDate(dIST.getUTCDate() + 7);
-        }
-        return results;
-    }
-
-    if (freq === 'Weekly') {
+        // Start from base, step forward 1 day at a time
+        // Find first occurrence >= now
         const d = new Date(base);
-        while (d < todayUTC) d.setUTCDate(d.getUTCDate() + 7);
-        while (d <= untilUTC && results.length < weeksAhead) {
-            results.push(d.toISOString());
-            d.setUTCDate(d.getUTCDate() + 7);
+        // Rewind to today's date at same UTC time
+        const todayBase = new Date(nowUTC);
+        todayBase.setUTCHours(base.getUTCHours(), base.getUTCMinutes(), 0, 0);
+        // If todayBase is in the past, move to tomorrow
+        if (todayBase < nowUTC) todayBase.setUTCDate(todayBase.getUTCDate() + 1);
+        const cursor = new Date(todayBase);
+        const dailyLimit = new Date(nowUTC);
+        dailyLimit.setDate(dailyLimit.getDate() + 30);
+        while (cursor <= dailyLimit) {
+            results.push(cursor.toISOString());
+            cursor.setUTCDate(cursor.getUTCDate() + 1);
         }
+        return results;
+    }
+
+    const isWeekly = [
+        'Weekly', 'Every Monday', 'Every Tuesday', 'Every Wednesday',
+        'Every Thursday', 'Every Friday', 'Every Saturday', 'Every Sunday'
+    ].includes(freq);
+
+    if (isWeekly) {
+        // Start from the stored base UTC and step back/forward by 7 days
+        // to find first occurrence >= now
+        const cursor = new Date(base);
+        // Step backward until we find the earliest occurrence
+        while (cursor > nowUTC) cursor.setUTCDate(cursor.getUTCDate() - 7);
+        // Now step forward until we reach now or future
+        while (cursor < nowUTC) cursor.setUTCDate(cursor.getUTCDate() + 7);
+        // Collect forward occurrences
+        while (cursor <= limitUTC && results.length < weeksAhead) {
+            results.push(cursor.toISOString());
+            cursor.setUTCDate(cursor.getUTCDate() + 7);
+        }
+        return results;
+    }
+
+    if (freq === '2nd Saturday Monthly') {
+        // Find next 2nd Saturday after now
+        const cursor = new Date(base);
+        while (cursor < nowUTC) {
+            // Jump forward ~1 month
+            cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+        }
+        results.push(cursor.toISOString());
         return results;
     }
 
     // One-time / Monthly
-    if (base >= todayUTC) results.push(base.toISOString());
+    if (base >= nowUTC) results.push(base.toISOString());
     return results;
 };
 
-// ── Build calendar map: IST dateKey → [events] ───────────────────
+// ── Calendar map: IST dateKey → [{ev, utcStr}] ───────────────────
 const buildCalendarMap = (events) => {
     const map = {};
     events.forEach(ev => {
         getUpcomingOccurrences(ev, 16).forEach(utcStr => {
-            // Place on the IST date, not UTC date
-            const key = getISTDateKey(utcStr);
+            const key = getISTDateKey(utcStr); // place on IST date
             if (!map[key]) map[key] = [];
             map[key].push({ ev, utcStr });
         });
@@ -157,15 +130,15 @@ const buildCalendarMap = (events) => {
     return map;
 };
 
-// ── Check if event occurs on a given IST date ────────────────────
-const eventOccursOnISTDate = (ev, targetDate) => {
-    const targetKey = getISTDateKey(new Date(targetDate).toISOString());
+// ── Does this event occur on a given calendar date (IST)? ─────────
+const eventOccursOnISTDate = (ev, calendarDate) => {
+    const targetKey = getISTDateKey(new Date(calendarDate).toISOString());
     return getUpcomingOccurrences(ev, 16).some(utcStr => getISTDateKey(utcStr) === targetKey);
 };
 
-// ── Get the UTC string for an event on a specific IST date ───────
-const getUTCForISTDate = (ev, targetDate) => {
-    const targetKey = getISTDateKey(new Date(targetDate).toISOString());
+// ── Get the UTC string for this event on a specific IST date ─────
+const getUTCForISTDate = (ev, calendarDate) => {
+    const targetKey = getISTDateKey(new Date(calendarDate).toISOString());
     const match = getUpcomingOccurrences(ev, 16).find(utcStr => getISTDateKey(utcStr) === targetKey);
     return match || ev.event_datetime;
 };
@@ -204,11 +177,8 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
     const month = currentMonth.getMonth();
     const firstDay    = new Date(year, month, 1).getDay();
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-    // Today's IST date key
     const todayKey    = getISTDateKey(new Date().toISOString());
     const selectedKey = selectedDate ? getISTDateKey(new Date(selectedDate).toISOString()) : null;
-
     const monthName = currentMonth.toLocaleString('en-IN', { month: 'long', year: 'numeric' });
     const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -226,10 +196,10 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
                 {days.map(d => <div key={d} className="cal-day-label">{d}</div>)}
                 {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day = i + 1;
-                    const key = makeDateKey(year, month, day);
-                    const items    = calendarMap[key] || [];
-                    const count    = items.length;
+                    const day  = i + 1;
+                    const key  = makeDateKey(year, month, day);
+                    const items = calendarMap[key] || [];
+                    const count = items.length;
                     const isToday    = key === todayKey;
                     const isSelected = key === selectedKey;
                     return (
@@ -309,7 +279,6 @@ const SatsangPage = () => {
     const uniquePlatforms = [...new Set(events.map(e => e.platform))].sort();
     const uniqueFreqs     = [...new Set(events.map(e => e.frequency))].sort();
 
-    // Get the correct UTC string for display — for selected date, use that day's occurrence
     const getDisplayUTC = (ev) => {
         if (selectedDate) return getUTCForISTDate(ev, selectedDate);
         const occs = getUpcomingOccurrences(ev, 14);
@@ -440,7 +409,7 @@ const SatsangPage = () => {
                                     </tr>
 
                                     {filteredEvents.length === 0 ? (
-                                        <tr><td colSpan="10" style={{textAlign:'center',padding:'2rem',color:'#888'}}>🙏 No events found for this selection.</td></tr>
+                                        <tr><td colSpan="10" style={{textAlign:'center',padding:'2rem',color:'#888'}}>🙏 No events for this selection.</td></tr>
                                     ) : filteredEvents.map((ev, idx) => {
                                         const flag    = COUNTRY_FLAGS[ev.country] || '🌐';
                                         const hasLink = ev.meeting_url && ev.meeting_url.startsWith('http');
@@ -481,12 +450,12 @@ const SatsangPage = () => {
                 <section className="satsang-why-section">
                     <div className="satsang-why-inner">
                         <h2 className="satsang-why-title">🌳 Why Join Namavruksha?</h2>
-                        <p className="satsang-why-lead">Chanting the Divine Name is the simplest and most powerful spiritual practice. Namavruksha is a humble digital home for this sacred discipline — a space where every Nama you chant is counted, offered, and woven into a collective tapestry of devotion for Bhagawan Yogi Ramsuratkumar.</p>
+                        <p className="satsang-why-lead">Chanting the Divine Name is the simplest and most powerful spiritual practice. Namavruksha is a humble digital home for this sacred discipline — every Nama counted, offered, and woven into a collective tapestry of devotion for Bhagawan Yogi Ramsuratkumar.</p>
                         <div className="satsang-why-cards">
-                            <div className="why-card"><span className="why-icon">🔢</span><h3>Track Your Practice</h3><p>Every Nama you chant matters. Build the beautiful discipline of Nishta — steadfast, daily practice — that deepens your connection to the Divine Name.</p></div>
-                            <div className="why-card"><span className="why-icon">🌍</span><h3>Chant with the World</h3><p>Devotees across India, USA, UK, Singapore, Australia and beyond are chanting right now. Your Nama joins a river of collective devotion.</p></div>
-                            <div className="why-card"><span className="why-icon">📿</span><h3>Offer as a Sankalpa</h3><p>Each count you enter is an offering. Namavruksha gathers every Nama and presents it collectively at the feet of Bhagawan Yogi Ramsuratkumar.</p></div>
-                            <div className="why-card"><span className="why-icon">🕉</span><h3>Join Live Satsangs</h3><p>These global chanting events are open to all. Join a session, chant together, and log your Namas on Namavruksha — every Nama counts.</p></div>
+                            <div className="why-card"><span className="why-icon">🔢</span><h3>Track Your Practice</h3><p>Every Nama matters. Build the discipline of Nishta — steadfast daily practice that deepens your connection to the Divine Name.</p></div>
+                            <div className="why-card"><span className="why-icon">🌍</span><h3>Chant with the World</h3><p>Devotees across India, USA, UK, Singapore and beyond are chanting right now. Your Nama joins a river of collective devotion.</p></div>
+                            <div className="why-card"><span className="why-icon">📿</span><h3>Offer as a Sankalpa</h3><p>Each count is an offering. Namavruksha gathers every Nama and presents it collectively at the feet of Bhagawan Yogi Ramsuratkumar.</p></div>
+                            <div className="why-card"><span className="why-icon">🕉</span><h3>Join Live Satsangs</h3><p>These global events are open to all. Join a session, chant together, log your Namas — every Nama counts.</p></div>
                         </div>
                         <div className="satsang-cta-block">
                             <p className="satsang-cta-text"><em>"The Name is the boat. Sincerity is the oar. Let us row together."</em></p>
