@@ -263,3 +263,44 @@
     .submit-actions { flex-direction: column; }
     .submit-btn, .submit-cancel { width: 100%; justify-content: center; text-align: center; }
 }
+
+/* ── Timezone preview box ── */
+.tz-preview-box {
+    background: #e8f5e9;
+    border: 1px solid #a5d6a7;
+    border-radius: 10px;
+    padding: 14px 16px;
+    grid-column: span 2;
+}
+
+.tz-preview-title {
+    margin: 0 0 10px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: #2e7d32;
+}
+
+.tz-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+}
+
+.tz-preview-item {
+    background: #fff;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3px;
+}
+
+.tz-flag { font-size: 1.2rem; }
+.tz-preview-label { font-size: 0.7rem; color: #888; }
+.tz-preview-value { font-size: 0.8rem; font-weight: 700; color: #3a2000; line-height: 1.4; }
+
+@media (max-width: 480px) {
+    .tz-preview-grid { grid-template-columns: 1fr; }
+}
