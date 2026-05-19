@@ -304,3 +304,13 @@
     .satsang-table th:nth-child(7), .satsang-table td:nth-child(7) { display: none; }
     .satsang-table th:nth-child(8), .satsang-table td:nth-child(8) { display: none; }
 }
+
+/* Today cell — always show orange ring even without events */
+.cal-cell.today-cell {
+    border-color: #FF9933 !important;
+    background: #fff8f0 !important;
+}
+.cal-cell.today-cell.has-events {
+    background: linear-gradient(135deg, #fff3d0, #fff9f0) !important;
+    border-color: #FF9933 !important;
+}

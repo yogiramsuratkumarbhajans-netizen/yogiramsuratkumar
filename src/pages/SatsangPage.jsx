@@ -271,17 +271,20 @@ const SatsangCalendar = ({ calendarMap, onDateClick, selectedDate }) => {
                 {days.map(d => <div key={d} className="cal-day-label">{d}</div>)}
                 {Array.from({ length: firstDay }).map((_, i) => <div key={`e-${i}`} className="cal-cell empty" />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const day   = i + 1;
-                    const key   = makeDateKey(year, month, day);
-                    const evs   = calendarMap[key] || [];
-                    const count = evs.length;
+                    const day        = i + 1;
+                    const key        = makeDateKey(year, month, day);
+                    const evs        = calendarMap[key] || [];
+                    const count      = evs.length;
+                    const isToday    = key === todayKey;
+                    const isSelected = key === selectedKey;
+                    const clickable  = count > 0;
                     return (
                         <div key={day}
-                            className={`cal-cell${count>0?' has-events':''}${key===selectedKey?' selected':''}`}
-                            onClick={() => count > 0 && onDateClick(new Date(year, month, day))}
-                            title={evs.map(e => e.event_name).join(', ')}
+                            className={`cal-cell${clickable ? " has-events" : ""}${isToday ? " today-cell" : ""}${isSelected ? " selected" : ""}`}
+                            onClick={() => clickable && onDateClick(new Date(year, month, day))}
+                            title={evs.map(e => e.event_name).join(", ")}
                         >
-                            <span className={`cal-day-num${key===todayKey?' today-num':''}`}>{day}</span>
+                            <span className={`cal-day-num${isToday ? " today-num" : ""}`}>{day}</span>
                             {count > 0 && <span className="cal-event-count">{count}</span>}
                         </div>
                     );
