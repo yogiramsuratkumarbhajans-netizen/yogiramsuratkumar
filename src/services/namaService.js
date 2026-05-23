@@ -6,8 +6,7 @@ import { databases, storage, ID, Query, DATABASE_ID, COLLECTIONS, MEDIA_BUCKET_I
 
 export const getActiveNamaAccounts = async () => {
     const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
+        DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS,
         [Query.equal('is_active', true), Query.orderAsc('name')]
     );
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
@@ -15,41 +14,23 @@ export const getActiveNamaAccounts = async () => {
 
 export const getAllNamaAccounts = async () => {
     const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
+        DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS,
         [Query.orderAsc('name')]
     );
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const createNamaAccount = async (name, start_date = null, end_date = null, target_goal = null) => {
-    const insertData = {
-        name,
-        is_active: true,
-        created_at: new Date().toISOString()
-    };
-
+    const insertData = { name, is_active: true, created_at: new Date().toISOString() };
     if (start_date) insertData.start_date = start_date;
     if (end_date) insertData.end_date = end_date;
     if (target_goal) insertData.target_goal = parseInt(target_goal) || null;
-
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
-        ID.unique(),
-        insertData
-    );
-
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, ID.unique(), insertData);
     return { ...response, id: response.$id };
 };
 
 export const updateNamaAccount = async (id, updates) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
-        id,
-        updates
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, id, updates);
     return { ...response, id: response.$id };
 };
 
@@ -61,37 +42,28 @@ export const deleteNamaAccount = async (id) => {
 // Nama Entries Service
 // ============================================
 
-export const submitNamaEntry = async (userId, accountId, count, sourceType = 'manual', startDate = null, endDate = null) => {
+export const submitNamaEntry = async (userId, accountId, count, sourceType = 'manual', entryDate = null) => {
     const today = new Date().toISOString().split('T')[0];
-
     const entryData = {
         user_id: userId,
         account_id: accountId,
         count,
         source_type: sourceType,
-        entry_date: today,
+        entry_date: entryDate || today,
         created_at: new Date().toISOString()
     };
-
-    if (startDate) entryData.start_date = startDate;
-    if (endDate) entryData.end_date = endDate;
-
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        ID.unique(),
-        entryData
-    );
-
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, ID.unique(), entryData);
     return { ...response, id: response.$id };
 };
 
-export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'manual', startDate = null, endDate = null, devoteeCount = null) => {
-    const entryDate = (startDate && typeof startDate === 'string' && startDate.trim() !== '')
-        ? startDate
-        : new Date().toISOString().split('T')[0];
-    const results = [];
+// ── Single entryDate replaces startDate/endDate ──────────────────
+export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'manual', entryDate = null, devoteeCount = null) => {
+    const today = new Date().toISOString().split('T')[0];
+    const dateToUse = (entryDate && typeof entryDate === 'string' && entryDate.trim() !== '')
+        ? entryDate.trim()
+        : today;
 
+    const results = [];
     let isFirstEntry = true;
 
     for (const entry of entries) {
@@ -101,39 +73,22 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
                 account_id: entry.accountId,
                 count: parseInt(entry.count) || 0,
                 source_type: sourceType,
-                entry_date: entryDate,
+                entry_date: dateToUse,
                 created_at: new Date().toISOString()
             };
 
-            if (startDate && typeof startDate === 'string' && startDate.trim() !== '') {
-                entryData.start_date = startDate;
-            }
-            if (endDate && typeof endDate === 'string' && endDate.trim() !== '') {
-                entryData.end_date = endDate;
-            }
             if (isFirstEntry && devoteeCount && !isNaN(parseInt(devoteeCount))) {
                 entryData.devotee_count = parseInt(devoteeCount);
                 isFirstEntry = false;
             }
 
-            console.log('Submitting entry data:', entryData);
-
-            const response = await databases.createDocument(
-                DATABASE_ID,
-                COLLECTIONS.NAMA_ENTRIES,
-                ID.unique(),
-                entryData
-            );
+            const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, ID.unique(), entryData);
             results.push({ ...response, id: response.$id });
         } catch (error) {
             console.error('Error submitting entry:', error);
-            console.error('Entry data was:', entry);
-
             if (error.message && error.message.includes('devotee_count')) {
-                console.error('SCHEMA ERROR: The "devotee_count" attribute is missing in Appwrite.');
                 throw new Error('Please add "devotee_count" (Integer) attribute to "nama_entries" collection in Appwrite Console.');
             }
-
             throw error;
         }
     }
@@ -143,33 +98,18 @@ export const submitMultipleNamaEntries = async (userId, entries, sourceType = 'm
 
 export const getUserRecentEntries = async (userId, limit = 10) => {
     const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [
-            Query.equal('user_id', userId),
-            Query.orderDesc('entry_date'),
-            Query.limit(limit)
-        ]
+        DATABASE_ID, COLLECTIONS.NAMA_ENTRIES,
+        [Query.equal('user_id', userId), Query.orderDesc('entry_date'), Query.limit(limit)]
     );
-
     const entries = response.documents;
     const accountIds = [...new Set(entries.map(e => e.account_id))];
-
     const accountsMap = {};
     if (accountIds.length > 0) {
-        const accountsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ACCOUNTS,
-            [Query.limit(100)]
-        );
-        accountsResponse.documents.forEach(acc => {
-            accountsMap[acc.$id] = acc;
-        });
+        const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)]);
+        accountsResponse.documents.forEach(acc => { accountsMap[acc.$id] = acc; });
     }
-
     return entries.map(entry => ({
-        ...entry,
-        id: entry.$id,
+        ...entry, id: entry.$id,
         nama_accounts: accountsMap[entry.account_id] ? { name: accountsMap[entry.account_id].name } : null
     }));
 };
@@ -177,50 +117,31 @@ export const getUserRecentEntries = async (userId, limit = 10) => {
 export const getUserStats = async (userId) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() + mondayOffset);
     const weekStartStr = weekStart.toISOString().split('T')[0];
-
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+    const monthStart  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const yearStart   = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
     const prevYearStart = new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0];
-    const prevYearEnd = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
+    const prevYearEnd   = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
 
-    const stats = {
-        today: 0,
-        currentWeek: 0,
-        currentMonth: 0,
-        currentYear: 0,
-        previousYear: 0,
-        overall: 0,
-        totalDevotees: 0
-    };
-
+    const stats = { today: 0, currentWeek: 0, currentMonth: 0, currentYear: 0, previousYear: 0, overall: 0, totalDevotees: 0 };
     if (!userId) return stats;
 
-    // ── OPTIMIZED: 500 is a safe ceiling per user, was 10000 ──
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [Query.equal('user_id', userId), Query.limit(500)]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.equal('user_id', userId), Query.limit(500)]);
     const entries = response.documents || [];
 
     entries.forEach(entry => {
         const count = entry.count || 0;
         const devoteeCount = entry.devotee_count || 0;
-
         stats.overall += count;
         stats.totalDevotees += devoteeCount;
-
-        if (entry.entry_date === today) stats.today += count;
-        if (entry.entry_date >= weekStartStr) stats.currentWeek += count;
-        if (entry.entry_date >= monthStart) stats.currentMonth += count;
-        if (entry.entry_date >= yearStart) stats.currentYear += count;
+        if (entry.entry_date === today)         stats.today += count;
+        if (entry.entry_date >= weekStartStr)   stats.currentWeek += count;
+        if (entry.entry_date >= monthStart)     stats.currentMonth += count;
+        if (entry.entry_date >= yearStart)      stats.currentYear += count;
         if (entry.entry_date >= prevYearStart && entry.entry_date <= prevYearEnd) stats.previousYear += count;
     });
 
@@ -228,48 +149,21 @@ export const getUserStats = async (userId) => {
 };
 
 export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
-    if (!userId || !startDate || !endDate) {
-        return { entries: [], total: 0 };
-    }
-
-    console.log('getUserEntriesByDateRange called with:', { userId, startDate, endDate });
-
+    if (!userId || !startDate || !endDate) return { entries: [], total: 0 };
     const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [
-            Query.equal('user_id', userId),
-            Query.greaterThanEqual('entry_date', startDate),
-            Query.lessThanEqual('entry_date', endDate),
-            Query.orderDesc('entry_date'),
-            Query.limit(1000)
-        ]
+        DATABASE_ID, COLLECTIONS.NAMA_ENTRIES,
+        [Query.equal('user_id', userId), Query.greaterThanEqual('entry_date', startDate), Query.lessThanEqual('entry_date', endDate), Query.orderDesc('entry_date'), Query.limit(1000)]
     );
-
     const entries = response.documents || [];
-    console.log('Query returned entries:', entries.length, entries.map(e => ({ entry_date: e.entry_date, count: e.count, start_date: e.start_date, end_date: e.end_date })));
-
     const total = entries.reduce((sum, e) => sum + (e.count || 0), 0);
-
     const accountIds = [...new Set(entries.map(e => e.account_id))];
     const accountsMap = {};
     if (accountIds.length > 0) {
-        const accountsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ACCOUNTS,
-            [Query.limit(100)]
-        );
-        accountsResponse.documents.forEach(acc => {
-            accountsMap[acc.$id] = acc;
-        });
+        const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)]);
+        accountsResponse.documents.forEach(acc => { accountsMap[acc.$id] = acc; });
     }
-
     return {
-        entries: entries.map(entry => ({
-            ...entry,
-            id: entry.$id,
-            nama_accounts: accountsMap[entry.account_id] ? { name: accountsMap[entry.account_id].name } : null
-        })),
+        entries: entries.map(entry => ({ ...entry, id: entry.$id, nama_accounts: accountsMap[entry.account_id] ? { name: accountsMap[entry.account_id].name } : null })),
         total
     };
 };
@@ -279,74 +173,39 @@ export const getUserEntriesByDateRange = async (userId, startDate, endDate) => {
 // ============================================
 
 export const getAllUsers = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        [Query.orderDesc('created_at'), Query.limit(1000)]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.orderDesc('created_at'), Query.limit(1000)]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const updateUser = async (id, updates) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USERS,
-        id,
-        updates
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.USERS, id, updates);
     return { ...response, id: response.$id };
 };
 
 export const getAllNamaEntries = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        [Query.orderDesc('created_at'), Query.limit(1000)]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.orderDesc('created_at'), Query.limit(1000)]);
     const entries = response.documents;
-    const userIds = [...new Set(entries.map(e => e.user_id))];
+    const userIds    = [...new Set(entries.map(e => e.user_id))];
     const accountIds = [...new Set(entries.map(e => e.account_id))];
-
     const usersMap = {};
     if (userIds.length > 0) {
-        const usersResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.USERS,
-            [Query.limit(1000)]
-        );
-        usersResponse.documents.forEach(user => {
-            usersMap[user.$id] = user;
-        });
+        const usersResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1000)]);
+        usersResponse.documents.forEach(user => { usersMap[user.$id] = user; });
     }
-
     const accountsMap = {};
     if (accountIds.length > 0) {
-        const accountsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ACCOUNTS,
-            [Query.limit(100)]
-        );
-        accountsResponse.documents.forEach(acc => {
-            accountsMap[acc.$id] = acc;
-        });
+        const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)]);
+        accountsResponse.documents.forEach(acc => { accountsMap[acc.$id] = acc; });
     }
-
     return entries.map(entry => ({
-        ...entry,
-        id: entry.$id,
+        ...entry, id: entry.$id,
         users: usersMap[entry.user_id] ? { name: usersMap[entry.user_id].name, whatsapp: usersMap[entry.user_id].whatsapp } : null,
         nama_accounts: accountsMap[entry.account_id] ? { name: accountsMap[entry.account_id].name } : null
     }));
 };
 
 export const updateNamaEntry = async (id, updates) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ENTRIES,
-        id,
-        updates
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, id, updates);
     return { ...response, id: response.$id };
 };
 
@@ -354,75 +213,44 @@ export const deleteNamaEntry = async (id) => {
     await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, id);
 };
 
-// ── OPTIMIZED: accepts pre-fetched entries from PublicReportsPage
-//    to avoid double-fetching. Falls back to its own fetch if called standalone.
 export const getAccountStats = async (prefetchedEntries = null) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-
     const dayOfWeek = now.getDay();
     const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() + mondayOffset);
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-    const yearStart = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+    const weekStartStr  = weekStart.toISOString().split('T')[0];
+    const monthStart    = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const yearStart     = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
     const prevYearStart = new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0];
-    const prevYearEnd = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
+    const prevYearEnd   = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
 
-    // Get all active accounts
-    const accountsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
-        [Query.equal('is_active', true)]
-    );
+    const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true)]);
     const accounts = accountsResponse.documents;
 
-    // ── Use pre-fetched entries if provided, otherwise fetch with safe limit ──
     let entries;
     if (prefetchedEntries) {
         entries = prefetchedEntries;
     } else {
-        const entriesResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ENTRIES,
-            [Query.limit(2000)]
-        );
+        const entriesResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]);
         entries = entriesResponse.documents;
     }
 
-    const accountStats = accounts.map(account => {
+    return accounts.map(account => {
         const accountEntries = entries.filter(e => e.account_id === account.$id);
-
-        const stats = {
-            today: 0,
-            currentWeek: 0,
-            currentMonth: 0,
-            currentYear: 0,
-            previousYear: 0,
-            overall: 0
-        };
-
+        const stats = { today: 0, currentWeek: 0, currentMonth: 0, currentYear: 0, previousYear: 0, overall: 0 };
         accountEntries.forEach(entry => {
             const count = entry.count || 0;
             stats.overall += count;
-
-            if (entry.entry_date === today) stats.today += count;
+            if (entry.entry_date === today)       stats.today += count;
             if (entry.entry_date >= weekStartStr) stats.currentWeek += count;
-            if (entry.entry_date >= monthStart) stats.currentMonth += count;
-            if (entry.entry_date >= yearStart) stats.currentYear += count;
+            if (entry.entry_date >= monthStart)   stats.currentMonth += count;
+            if (entry.entry_date >= yearStart)    stats.currentYear += count;
             if (entry.entry_date >= prevYearStart && entry.entry_date <= prevYearEnd) stats.previousYear += count;
         });
-
-        return {
-            id: account.$id,
-            name: account.name,
-            ...stats
-        };
+        return { id: account.$id, name: account.name, ...stats };
     });
-
-    return accountStats;
 };
 
 // ============================================
@@ -430,78 +258,34 @@ export const getAccountStats = async (prefetchedEntries = null) => {
 // ============================================
 
 export const getUserAccountLinks = async (userId) => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USER_ACCOUNT_LINKS,
-        [Query.equal('user_id', userId)]
-    );
-
-    const accountsResponse = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.NAMA_ACCOUNTS,
-        [Query.limit(100)]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, [Query.equal('user_id', userId)]);
+    const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)]);
     const accountsMap = {};
-    accountsResponse.documents.forEach(acc => {
-        accountsMap[acc.$id] = acc;
-    });
-
+    accountsResponse.documents.forEach(acc => { accountsMap[acc.$id] = acc; });
     return response.documents.map(link => ({
         account_id: link.account_id,
-        nama_accounts: accountsMap[link.account_id] ? {
-            id: accountsMap[link.account_id].$id,
-            name: accountsMap[link.account_id].name,
-            is_active: accountsMap[link.account_id].is_active
-        } : null
+        nama_accounts: accountsMap[link.account_id] ? { id: accountsMap[link.account_id].$id, name: accountsMap[link.account_id].name, is_active: accountsMap[link.account_id].is_active } : null
     }));
 };
 
 export const linkUserToAccount = async (userId, accountId) => {
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_ACCOUNT_LINKS,
-        ID.unique(),
-        {
-            user_id: userId,
-            account_id: accountId,
-            created_at: new Date().toISOString()
-        }
-    );
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, ID.unique(), { user_id: userId, account_id: accountId, created_at: new Date().toISOString() });
     return { ...response, id: response.$id };
 };
 
 export const linkUserToAccounts = async (userId, accountIds) => {
     const results = [];
     for (const accountId of accountIds) {
-        const response = await databases.createDocument(
-            DATABASE_ID,
-            COLLECTIONS.USER_ACCOUNT_LINKS,
-            ID.unique(),
-            {
-                user_id: userId,
-                account_id: accountId,
-                created_at: new Date().toISOString()
-            }
-        );
+        const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, ID.unique(), { user_id: userId, account_id: accountId, created_at: new Date().toISOString() });
         results.push({ ...response, id: response.$id });
     }
     return results;
 };
 
 export const unlinkUserFromAccount = async (userId, accountId) => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USER_ACCOUNT_LINKS,
-        [Query.equal('user_id', userId), Query.equal('account_id', accountId)]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, [Query.equal('user_id', userId), Query.equal('account_id', accountId)]);
     if (response.documents.length > 0) {
-        await databases.deleteDocument(
-            DATABASE_ID,
-            COLLECTIONS.USER_ACCOUNT_LINKS,
-            response.documents[0].$id
-        );
+        await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, response.documents[0].$id);
     }
 };
 
@@ -514,9 +298,7 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
     const errors = [];
     const BATCH_SIZE = 10;
     const DELAY_BETWEEN_BATCHES = 500;
-
     const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
     const normalizeWhatsApp = (whatsapp) => {
         if (!whatsapp) return '';
         let normalized = String(whatsapp).replace(/[^\d+]/g, '');
@@ -526,102 +308,28 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
 
     for (let i = 0; i < users.length; i += BATCH_SIZE) {
         const batch = users.slice(i, i + BATCH_SIZE);
-
         for (const userData of batch) {
             try {
                 const normalizedWhatsApp = normalizeWhatsApp(userData.whatsapp);
-
                 let existingUser = null;
                 try {
-                    const existingCheck = await databases.listDocuments(
-                        DATABASE_ID,
-                        COLLECTIONS.USERS,
-                        [Query.equal('whatsapp', normalizedWhatsApp), Query.limit(1)]
-                    );
-                    if (existingCheck.documents.length > 0) {
-                        existingUser = existingCheck.documents[0];
-                    }
-                } catch (checkErr) { }
-
-                if (existingUser) {
-                    errors.push({
-                        user: userData,
-                        error: `User with WhatsApp ${normalizedWhatsApp} already exists`,
-                        type: 'duplicate'
-                    });
-                    continue;
-                }
-
+                    const existingCheck = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.equal('whatsapp', normalizedWhatsApp), Query.limit(1)]);
+                    if (existingCheck.documents.length > 0) existingUser = existingCheck.documents[0];
+                } catch (checkErr) {}
+                if (existingUser) { errors.push({ user: userData, error: `User with WhatsApp ${normalizedWhatsApp} already exists`, type: 'duplicate' }); continue; }
                 const emailPhone = normalizedWhatsApp.replace(/[^0-9]/g, '');
-
-                console.log('Email check for user:', userData.name, '| Provided email:', userData.email, '| Type:', typeof userData.email);
-
-                const hasValidEmail = userData.email &&
-                    String(userData.email).trim() !== '' &&
-                    String(userData.email).includes('@') &&
-                    String(userData.email).indexOf('@') > 0 &&
-                    String(userData.email).indexOf('@') < String(userData.email).length - 1;
-
+                const hasValidEmail = userData.email && String(userData.email).trim() !== '' && String(userData.email).includes('@') && String(userData.email).indexOf('@') > 0 && String(userData.email).indexOf('@') < String(userData.email).length - 1;
                 const email = hasValidEmail ? String(userData.email).trim() : `${emailPhone}@namavruksha.org`;
-
-                console.log('Email decision:', hasValidEmail ? 'Using provided email' : 'Generated from phone', '| Final email:', email);
-
                 const passwordStr = String(userData.password).trim();
-
-                console.log('Creating user with data:', { ...userData, whatsapp: normalizedWhatsApp, email });
-
-                const newUser = await databases.createDocument(
-                    DATABASE_ID,
-                    COLLECTIONS.USERS,
-                    ID.unique(),
-                    {
-                        name: userData.name,
-                        email: email,
-                        whatsapp: normalizedWhatsApp,
-                        password: passwordStr,
-                        city: userData.city || null,
-                        state: userData.state || null,
-                        country: userData.country || null,
-                        is_active: true,
-                        created_at: new Date().toISOString()
-                    }
-                );
-
+                const newUser = await databases.createDocument(DATABASE_ID, COLLECTIONS.USERS, ID.unique(), { name: userData.name, email, whatsapp: normalizedWhatsApp, password: passwordStr, city: userData.city || null, state: userData.state || null, country: userData.country || null, is_active: true, created_at: new Date().toISOString() });
                 const accountsToLink = userData.accountIds || defaultAccountIds;
-                if (accountsToLink.length > 0) {
-                    try {
-                        await linkUserToAccounts(newUser.$id, accountsToLink);
-                    } catch (linkErr) {
-                        console.error('Error linking accounts for user:', userData.name, linkErr);
-                    }
-                }
-
+                if (accountsToLink.length > 0) { try { await linkUserToAccounts(newUser.$id, accountsToLink); } catch (linkErr) { console.error('Error linking accounts:', linkErr); } }
                 results.push({ ...newUser, id: newUser.$id });
-            } catch (err) {
-                console.error('Error creating user:', userData.name, err);
-                errors.push({
-                    user: userData,
-                    error: err.message || 'Unknown error',
-                    type: 'create_failed'
-                });
-            }
+            } catch (err) { errors.push({ user: userData, error: err.message || 'Unknown error', type: 'create_failed' }); }
         }
-
-        if (onProgress) {
-            const processed = Math.min(i + BATCH_SIZE, users.length);
-            onProgress({
-                processed,
-                total: users.length,
-                successCount: results.length,
-                errorCount: errors.length
-            });
-        }
-
-        if (i + BATCH_SIZE < users.length) {
-            await delay(DELAY_BETWEEN_BATCHES);
-        }
+        if (onProgress) { const processed = Math.min(i + BATCH_SIZE, users.length); onProgress({ processed, total: users.length, successCount: results.length, errorCount: errors.length }); }
+        if (i + BATCH_SIZE < users.length) await delay(DELAY_BETWEEN_BATCHES);
     }
-
     return { results, errors };
 };
 
@@ -630,39 +338,16 @@ export const bulkCreateUsers = async (users, defaultAccountIds = [], onProgress 
 // ============================================
 
 export const submitPrayer = async (prayerData, userId = null) => {
-    const data = {
-        name: prayerData.name,
-        email: prayerData.email,
-        phone: prayerData.phone || null,
-        privacy: prayerData.privacy || 'public',
-        prayer_text: prayerData.prayer_text,
-        email_notifications: prayerData.email_notifications || false,
-        status: 'pending',
-        created_at: new Date().toISOString()
-    };
-
-    if (userId) {
-        data.user_id = userId;
-    }
-
+    const data = { name: prayerData.name, email: prayerData.email, phone: prayerData.phone || null, privacy: prayerData.privacy || 'public', prayer_text: prayerData.prayer_text, email_notifications: prayerData.email_notifications || false, status: 'pending', created_at: new Date().toISOString() };
+    if (userId) data.user_id = userId;
     try {
         data.prayer_count = 0;
-        const response = await databases.createDocument(
-            DATABASE_ID,
-            COLLECTIONS.PRAYERS,
-            ID.unique(),
-            data
-        );
+        const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.PRAYERS, ID.unique(), data);
         return { ...response, id: response.$id };
     } catch (err) {
         if (err.message && (err.message.includes('prayer_count') || err.message.includes('unknown_attribute'))) {
             delete data.prayer_count;
-            const response = await databases.createDocument(
-                DATABASE_ID,
-                COLLECTIONS.PRAYERS,
-                ID.unique(),
-                data
-            );
+            const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.PRAYERS, ID.unique(), data);
             return { ...response, id: response.$id };
         }
         throw err;
@@ -670,59 +355,29 @@ export const submitPrayer = async (prayerData, userId = null) => {
 };
 
 export const getApprovedPrayers = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.PRAYERS,
-        [Query.equal('status', 'approved'), Query.orderDesc('created_at')]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PRAYERS, [Query.equal('status', 'approved'), Query.orderDesc('created_at')]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const getPendingPrayers = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.PRAYERS,
-        [Query.equal('status', 'pending'), Query.orderDesc('created_at')]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PRAYERS, [Query.equal('status', 'pending'), Query.orderDesc('created_at')]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const getAllPrayers = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.PRAYERS,
-        [Query.orderDesc('created_at')]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PRAYERS, [Query.orderDesc('created_at')]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const approvePrayer = async (id, moderatorId = null) => {
     try {
-        const updateData = {
-            status: 'approved',
-            approved_at: new Date().toISOString()
-        };
-
-        if (moderatorId) {
-            updateData.approved_by = moderatorId;
-        }
-
-        const response = await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTIONS.PRAYERS,
-            id,
-            updateData
-        );
+        const updateData = { status: 'approved', approved_at: new Date().toISOString() };
+        if (moderatorId) updateData.approved_by = moderatorId;
+        const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id, updateData);
         return { ...response, id: response.$id };
     } catch (err) {
         if (err.message && (err.message.includes('Unknown attribute') || err.message.includes('unknown_attribute'))) {
-            console.warn('Prayer schema missing approved_at/approved_by fields, updating status only.');
-            const response = await databases.updateDocument(
-                DATABASE_ID,
-                COLLECTIONS.PRAYERS,
-                id,
-                { status: 'approved' }
-            );
+            const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id, { status: 'approved' });
             return { ...response, id: response.$id };
         }
         throw err;
@@ -730,30 +385,17 @@ export const approvePrayer = async (id, moderatorId = null) => {
 };
 
 export const rejectPrayer = async (id) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.PRAYERS,
-        id,
-        { status: 'rejected' }
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id, { status: 'rejected' });
     return { ...response, id: response.$id };
 };
 
 export const incrementPrayerCount = async (id) => {
     try {
         const prayer = await databases.getDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id);
-        const response = await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTIONS.PRAYERS,
-            id,
-            { prayer_count: (prayer.prayer_count || 0) + 1 }
-        );
+        const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.PRAYERS, id, { prayer_count: (prayer.prayer_count || 0) + 1 });
         return { ...response, id: response.$id };
     } catch (err) {
-        if (err.message && err.message.includes('prayer_count')) {
-            console.warn('SCHEMA NOTE: The "prayer_count" attribute needs to be added to the PRAYERS collection in Appwrite Console.');
-            throw new Error('Please add "prayer_count" (Integer, optional, default: 0) attribute to PRAYERS collection in Appwrite Console.');
-        }
+        if (err.message && err.message.includes('prayer_count')) throw new Error('Please add "prayer_count" (Integer, optional, default: 0) attribute to PRAYERS collection in Appwrite Console.');
         throw err;
     }
 };
@@ -763,148 +405,57 @@ export const incrementPrayerCount = async (id) => {
 // ============================================
 
 export const uploadBook = async (file, metadata) => {
-    const fileResponse = await storage.createFile(
-        MEDIA_BUCKET_ID,
-        ID.unique(),
-        file
-    );
-
+    const fileResponse = await storage.createFile(MEDIA_BUCKET_ID, ID.unique(), file);
     const fileUrl = storage.getFileView(MEDIA_BUCKET_ID, fileResponse.$id);
-
-    const bookDocument = {
-        title: metadata.title || 'Untitled',
-        file_url: fileUrl,
-        file_id: fileResponse.$id,
-        view_count: 0,
-        created_at: new Date().toISOString()
-    };
-
+    const bookDocument = { title: metadata.title || 'Untitled', file_url: fileUrl, file_id: fileResponse.$id, view_count: 0, created_at: new Date().toISOString() };
     if (metadata.description) bookDocument.description = metadata.description;
-    if (metadata.month) bookDocument.month = metadata.month;
-    if (metadata.year) bookDocument.year = metadata.year;
-    if (metadata.language) bookDocument.language = metadata.language;
-
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.BOOKS,
-        ID.unique(),
-        bookDocument
-    );
-
+    if (metadata.month)       bookDocument.month       = metadata.month;
+    if (metadata.year)        bookDocument.year        = metadata.year;
+    if (metadata.language)    bookDocument.language    = metadata.language;
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.BOOKS, ID.unique(), bookDocument);
     return { ...response, id: response.$id };
 };
 
 export const getBooks = async (filters = {}) => {
     const queries = [Query.orderDesc('created_at')];
-
-    if (filters.year) queries.push(Query.equal('year', filters.year));
-    if (filters.month) queries.push(Query.equal('month', filters.month));
-    if (filters.country) queries.push(Query.equal('country', filters.country));
-    if (filters.city) queries.push(Query.equal('city', filters.city));
-    if (filters.language) queries.push(Query.equal('language', filters.language));
+    if (filters.year)         queries.push(Query.equal('year', filters.year));
+    if (filters.month)        queries.push(Query.equal('month', filters.month));
+    if (filters.country)      queries.push(Query.equal('country', filters.country));
+    if (filters.city)         queries.push(Query.equal('city', filters.city));
+    if (filters.language)     queries.push(Query.equal('language', filters.language));
     if (filters.edition_type) queries.push(Query.equal('edition_type', filters.edition_type));
-
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.BOOKS,
-        queries
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.BOOKS, queries);
     return response.documents.map(doc => ({ ...doc, id: doc.$id }));
 };
 
 export const getMostViewedBooks = async (limit = 5) => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.BOOKS,
-        [Query.orderDesc('view_count'), Query.limit(limit)]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.BOOKS, [Query.orderDesc('view_count'), Query.limit(limit)]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id }));
 };
 
 export const incrementBookView = async (bookId) => {
     try {
         const book = await databases.getDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId);
-        await databases.updateDocument(
-            DATABASE_ID,
-            COLLECTIONS.BOOKS,
-            bookId,
-            { view_count: (book.view_count || 0) + 1 }
-        );
-    } catch (error) {
-        console.error('Error incrementing view:', error);
-    }
+        await databases.updateDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId, { view_count: (book.view_count || 0) + 1 });
+    } catch (error) { console.error('Error incrementing view:', error); }
 };
 
 export const deleteBook = async (bookId, fileUrl, moderatorId = null) => {
     const book = await databases.getDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId);
     await databases.deleteDocument(DATABASE_ID, COLLECTIONS.BOOKS, bookId);
-
-    if (book.file_id) {
-        try {
-            await storage.deleteFile(MEDIA_BUCKET_ID, book.file_id);
-        } catch (err) {
-            console.error('Error deleting file from storage:', err);
-        }
-    }
+    if (book.file_id) { try { await storage.deleteFile(MEDIA_BUCKET_ID, book.file_id); } catch (err) { console.error('Error deleting file:', err); } }
 };
 
 export const updateBook = async (id, updates) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.BOOKS,
-        id,
-        updates
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.BOOKS, id, updates);
     return { ...response, id: response.$id };
 };
 
 export const deleteUser = async (id, moderatorId = null) => {
-    try {
-        const entriesResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ENTRIES,
-            [Query.equal('user_id', id)]
-        );
-        for (const entry of entriesResponse.documents) {
-            await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, entry.$id);
-        }
-    } catch (e) {
-        console.warn('Error deleting user entries:', e.message);
-    }
-
-    try {
-        const linksResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.USER_ACCOUNT_LINKS,
-            [Query.equal('user_id', id)]
-        );
-        for (const link of linksResponse.documents) {
-            await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, link.$id);
-        }
-    } catch (e) {
-        console.warn('Error deleting user account links:', e.message);
-    }
-
-    try {
-        const resetsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.PASSWORD_RESETS,
-            [Query.equal('user_id', id)]
-        );
-        for (const reset of resetsResponse.documents) {
-            await databases.deleteDocument(DATABASE_ID, COLLECTIONS.PASSWORD_RESETS, reset.$id);
-        }
-    } catch (e) { }
-
-    try {
-        await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USERS, id);
-    } catch (e) {
-        if (e.code === 404 || e.message?.includes('not be found') || e.message?.includes('not found')) {
-            console.warn('User already deleted or not found:', id);
-        } else {
-            throw e;
-        }
-    }
+    try { const entriesResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.equal('user_id', id)]); for (const entry of entriesResponse.documents) { await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, entry.$id); } } catch (e) { console.warn('Error deleting user entries:', e.message); }
+    try { const linksResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, [Query.equal('user_id', id)]); for (const link of linksResponse.documents) { await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, link.$id); } } catch (e) { console.warn('Error deleting user account links:', e.message); }
+    try { const resetsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.PASSWORD_RESETS, [Query.equal('user_id', id)]); for (const reset of resetsResponse.documents) { await databases.deleteDocument(DATABASE_ID, COLLECTIONS.PASSWORD_RESETS, reset.$id); } } catch (e) {}
+    try { await databases.deleteDocument(DATABASE_ID, COLLECTIONS.USERS, id); } catch (e) { if (e.code === 404 || e.message?.includes('not be found') || e.message?.includes('not found')) { console.warn('User already deleted:', id); } else { throw e; } }
 };
 
 export const deletePrayer = async (id, moderatorId = null) => {
@@ -916,276 +467,105 @@ export const deletePrayer = async (id, moderatorId = null) => {
 // ============================================
 
 export const requestAccountDeletion = async (accountId, moderatorId, reason = null) => {
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.ACCOUNT_DELETION_REQUESTS,
-        ID.unique(),
-        {
-            account_id: accountId,
-            requested_by: moderatorId,
-            reason,
-            status: 'pending',
-            created_at: new Date().toISOString()
-        }
-    );
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, ID.unique(), { account_id: accountId, requested_by: moderatorId, reason, status: 'pending', created_at: new Date().toISOString() });
     return { ...response, id: response.$id };
 };
 
 export const getPendingDeletionRequests = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.ACCOUNT_DELETION_REQUESTS,
-        [Query.equal('status', 'pending'), Query.orderDesc('created_at')]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, [Query.equal('status', 'pending'), Query.orderDesc('created_at')]);
     const requests = response.documents;
-    const accountIds = [...new Set(requests.map(r => r.account_id))];
+    const accountIds   = [...new Set(requests.map(r => r.account_id))];
     const moderatorIds = [...new Set(requests.map(r => r.requested_by))];
-
     const accountsMap = {};
     const moderatorsMap = {};
-
-    if (accountIds.length > 0) {
-        const accountsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.NAMA_ACCOUNTS,
-            [Query.limit(100)]
-        );
-        accountsResponse.documents.forEach(acc => {
-            accountsMap[acc.$id] = acc;
-        });
-    }
-
-    if (moderatorIds.length > 0) {
-        const moderatorsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.MODERATORS,
-            [Query.limit(100)]
-        );
-        moderatorsResponse.documents.forEach(mod => {
-            moderatorsMap[mod.$id] = mod;
-        });
-    }
-
-    return requests.map(req => ({
-        ...req,
-        id: req.$id,
-        nama_accounts: accountsMap[req.account_id] ? { id: accountsMap[req.account_id].$id, name: accountsMap[req.account_id].name } : null,
-        moderators: moderatorsMap[req.requested_by] ? { id: moderatorsMap[req.requested_by].$id, name: moderatorsMap[req.requested_by].name } : null
-    }));
+    if (accountIds.length > 0) { const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)]); accountsResponse.documents.forEach(acc => { accountsMap[acc.$id] = acc; }); }
+    if (moderatorIds.length > 0) { const moderatorsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.MODERATORS, [Query.limit(100)]); moderatorsResponse.documents.forEach(mod => { moderatorsMap[mod.$id] = mod; }); }
+    return requests.map(req => ({ ...req, id: req.$id, nama_accounts: accountsMap[req.account_id] ? { id: accountsMap[req.account_id].$id, name: accountsMap[req.account_id].name } : null, moderators: moderatorsMap[req.requested_by] ? { id: moderatorsMap[req.requested_by].$id, name: moderatorsMap[req.requested_by].name } : null }));
 };
 
 export const approveAccountDeletion = async (requestId) => {
     const request = await databases.getDocument(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, requestId);
     await deleteNamaAccount(request.account_id);
-    await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.ACCOUNT_DELETION_REQUESTS,
-        requestId,
-        { status: 'approved' }
-    );
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, requestId, { status: 'approved' });
 };
 
 export const rejectAccountDeletion = async (requestId) => {
-    await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.ACCOUNT_DELETION_REQUESTS,
-        requestId,
-        { status: 'rejected' }
-    );
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.ACCOUNT_DELETION_REQUESTS, requestId, { status: 'rejected' });
 };
 
 // ============================================
-// User Deletion Requests (Moderator -> Admin)
+// User Deletion Requests
 // ============================================
 
 export const requestUserDeletion = async (userId, moderatorId, reason) => {
-    const response = await databases.createDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_DELETION_REQUESTS,
-        ID.unique(),
-        {
-            user_id: userId,
-            requested_by: moderatorId,
-            reason,
-            status: 'pending',
-            created_at: new Date().toISOString()
-        }
-    );
+    const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, ID.unique(), { user_id: userId, requested_by: moderatorId, reason, status: 'pending', created_at: new Date().toISOString() });
     return { ...response, id: response.$id };
 };
 
 export const getPendingUserDeletionRequests = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.USER_DELETION_REQUESTS,
-        [Query.equal('status', 'pending'), Query.orderDesc('created_at')]
-    );
-
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, [Query.equal('status', 'pending'), Query.orderDesc('created_at')]);
     const requests = response.documents;
-    const userIds = [...new Set(requests.map(r => r.user_id))];
+    const userIds      = [...new Set(requests.map(r => r.user_id))];
     const moderatorIds = [...new Set(requests.map(r => r.requested_by))];
-
     const usersMap = {};
     const moderatorsMap = {};
-
-    if (userIds.length > 0) {
-        const usersResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.USERS,
-            [Query.limit(1000)]
-        );
-        usersResponse.documents.forEach(user => {
-            usersMap[user.$id] = user;
-        });
-    }
-
-    if (moderatorIds.length > 0) {
-        const moderatorsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.MODERATORS,
-            [Query.limit(100)]
-        );
-        moderatorsResponse.documents.forEach(mod => {
-            moderatorsMap[mod.$id] = mod;
-        });
-    }
-
-    return requests.map(req => ({
-        ...req,
-        id: req.$id,
-        users: usersMap[req.user_id] ? { id: usersMap[req.user_id].$id, name: usersMap[req.user_id].name, email: usersMap[req.user_id].email, whatsapp: usersMap[req.user_id].whatsapp } : null,
-        moderators: moderatorsMap[req.requested_by] ? { id: moderatorsMap[req.requested_by].$id, name: moderatorsMap[req.requested_by].name } : null
-    }));
+    if (userIds.length > 0) { const usersResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1000)]); usersResponse.documents.forEach(user => { usersMap[user.$id] = user; }); }
+    if (moderatorIds.length > 0) { const moderatorsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.MODERATORS, [Query.limit(100)]); moderatorsResponse.documents.forEach(mod => { moderatorsMap[mod.$id] = mod; }); }
+    return requests.map(req => ({ ...req, id: req.$id, users: usersMap[req.user_id] ? { id: usersMap[req.user_id].$id, name: usersMap[req.user_id].name, email: usersMap[req.user_id].email, whatsapp: usersMap[req.user_id].whatsapp } : null, moderators: moderatorsMap[req.requested_by] ? { id: moderatorsMap[req.requested_by].$id, name: moderatorsMap[req.requested_by].name } : null }));
 };
 
 export const approveUserDeletion = async (requestId) => {
     const request = await databases.getDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, requestId);
-
-    try {
-        await deleteUser(request.user_id);
-    } catch (err) {
-        if (err.code === 404 || err.message?.includes('not be found') || err.message?.includes('not found')) {
-            console.warn('User already deleted or not found:', request.user_id);
-        } else {
-            throw err;
-        }
-    }
-
-    await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_DELETION_REQUESTS,
-        requestId,
-        { status: 'approved' }
-    );
+    try { await deleteUser(request.user_id); } catch (err) { if (!(err.code === 404 || err.message?.includes('not be found') || err.message?.includes('not found'))) throw err; }
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, requestId, { status: 'approved' });
 };
 
 export const rejectUserDeletion = async (requestId) => {
-    await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.USER_DELETION_REQUESTS,
-        requestId,
-        { status: 'rejected' }
-    );
+    await databases.updateDocument(DATABASE_ID, COLLECTIONS.USER_DELETION_REQUESTS, requestId, { status: 'rejected' });
 };
 
 // ============================================
-// Audio Files Service (Appwrite Storage)
+// Audio & Image Files Service
 // ============================================
 
 export const getAudioFiles = async (bucketId) => {
     try {
         const response = await storage.listFiles(bucketId);
-        return response.files.map(file => ({
-            id: file.$id,
-            name: file.name,
-            url: storage.getFileView(bucketId, file.$id),
-            size: file.sizeOriginal
-        }));
-    } catch (error) {
-        console.error('Error fetching audio files:', error);
-        return [];
-    }
+        return response.files.map(file => ({ id: file.$id, name: file.name, url: storage.getFileView(bucketId, file.$id), size: file.sizeOriginal }));
+    } catch (error) { console.error('Error fetching audio files:', error); return []; }
 };
-
-// ============================================
-// Image Files Service (Appwrite Storage)
-// ============================================
 
 export const getImageFiles = async (bucketId) => {
     try {
         const response = await storage.listFiles(bucketId);
-        return response.files.map(file => ({
-            id: file.$id,
-            name: file.name,
-            url: storage.getFileView(bucketId, file.$id),
-            previewUrl: storage.getFilePreview(bucketId, file.$id, 400, 400),
-            size: file.sizeOriginal
-        }));
-    } catch (error) {
-        console.error('Error fetching image files:', error);
-        return [];
-    }
+        return response.files.map(file => ({ id: file.$id, name: file.name, url: storage.getFileView(bucketId, file.$id), previewUrl: storage.getFilePreview(bucketId, file.$id, 400, 400), size: file.sizeOriginal }));
+    } catch (error) { console.error('Error fetching image files:', error); return []; }
 };
 
 // ============================================
-// Feedback & Suggestions Service
+// Feedback Service
 // ============================================
 
 export const submitFeedback = async (feedbackData, userId = null) => {
-    const data = {
-        type: feedbackData.type || 'general',
-        subject: feedbackData.subject,
-        message: feedbackData.message,
-        user_name: feedbackData.userName || null,
-        user_contact: feedbackData.userContact || null,
-        status: 'pending',
-        created_at: new Date().toISOString()
-    };
-
-    if (userId) {
-        data.user_id = userId;
-    }
-
+    const data = { type: feedbackData.type || 'general', subject: feedbackData.subject, message: feedbackData.message, user_name: feedbackData.userName || null, user_contact: feedbackData.userContact || null, status: 'pending', created_at: new Date().toISOString() };
+    if (userId) data.user_id = userId;
     try {
-        const response = await databases.createDocument(
-            DATABASE_ID,
-            COLLECTIONS.FEEDBACK,
-            ID.unique(),
-            data
-        );
+        const response = await databases.createDocument(DATABASE_ID, COLLECTIONS.FEEDBACK, ID.unique(), data);
         return { ...response, id: response.$id, savedToDb: true };
     } catch (err) {
-        if (err.code === 404 ||
-            (err.message && (err.message.includes('Collection not found') ||
-                err.message.includes('not found') ||
-                err.message.includes('does not exist')))) {
-            console.warn('Feedback collection not found in Appwrite. Returning success for email-only flow.');
-            return {
-                id: 'email-only-' + Date.now(),
-                savedToDb: false,
-                ...data
-            };
+        if (err.code === 404 || (err.message && (err.message.includes('Collection not found') || err.message.includes('not found') || err.message.includes('does not exist')))) {
+            return { id: 'email-only-' + Date.now(), savedToDb: false, ...data };
         }
         throw err;
     }
 };
 
 export const getAllFeedback = async () => {
-    const response = await databases.listDocuments(
-        DATABASE_ID,
-        COLLECTIONS.FEEDBACK,
-        [Query.orderDesc('created_at')]
-    );
+    const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.FEEDBACK, [Query.orderDesc('created_at')]);
     return response.documents.map(doc => ({ ...doc, id: doc.$id })) || [];
 };
 
 export const updateFeedbackStatus = async (id, status) => {
-    const response = await databases.updateDocument(
-        DATABASE_ID,
-        COLLECTIONS.FEEDBACK,
-        id,
-        { status }
-    );
+    const response = await databases.updateDocument(DATABASE_ID, COLLECTIONS.FEEDBACK, id, { status });
     return { ...response, id: response.$id };
 };
