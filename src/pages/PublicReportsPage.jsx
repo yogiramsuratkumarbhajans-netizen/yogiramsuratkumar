@@ -24,6 +24,9 @@ const PublicReportsPage = () => {
     const [totalStats, setTotalStats] = useState({ users: 0, entries: 0, total: 0 });
     const [recentEntries, setRecentEntries] = useState([]);
 
+    // ── NEW: Devotee Statistics state ────────────────────────────
+    const [devoteeStats, setDevoteeStats] = useState([]);
+
     const currentYear = new Date().getFullYear();
     const [selectedPreviousYear, setSelectedPreviousYear] = useState(currentYear - 1);
     const [showYearPicker, setShowYearPicker] = useState(false);
@@ -31,12 +34,9 @@ const PublicReportsPage = () => {
     const [customEndDate, setCustomEndDate] = useState('');
     const availableYears = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
-    useEffect(() => {
-        loadAllData();
-    }, []);
+    useEffect(() => { loadAllData(); }, []);
 
-    // ─── SINGLE SHARED FETCH ─────────────────────────────────────────────────────
-
+    // ─── SINGLE SHARED FETCH ─────────────────────────────────────
     const fetchSharedData = async () => {
         const [entriesRes, usersRes, accountsRes] = await Promise.all([
             databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
@@ -68,7 +68,8 @@ const PublicReportsPage = () => {
                 loadNewDevotees(shared),
                 loadTopGrowing(shared),
                 loadTotalStats(shared),
-                loadRecentEntries(shared)
+                loadRecentEntries(shared),
+                loadDevoteeStats(shared),   // ← NEW
             ]);
         } catch (error) {
             console.error('Error loading data:', error);
@@ -77,27 +78,20 @@ const PublicReportsPage = () => {
         }
     };
 
-    // ─── ACCOUNT STATS ───────────────────────────────────────────────────────────
-
+    // ─── ACCOUNT STATS ───────────────────────────────────────────
     const loadAccountStats = async (shared, rangeOverride = null) => {
         let title = 'Previous Year';
         let startDate, endDate;
-
         if (rangeOverride && rangeOverride.type === 'custom') {
-            startDate = rangeOverride.start;
-            endDate = rangeOverride.end;
-            title = 'Custom Period';
+            startDate = rangeOverride.start; endDate = rangeOverride.end; title = 'Custom Period';
         } else {
             const year = (rangeOverride && rangeOverride.year) || selectedPreviousYear;
-            startDate = `${year}-01-01`;
-            endDate = `${year}-12-31`;
+            startDate = `${year}-01-01`; endDate = `${year}-12-31`;
             title = year === (currentYear - 1) ? 'Previous Year' : `${year}`;
         }
-
         try {
             const data = await getAccountStats();
             const entries = shared?.allEntries || [];
-
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entries.filter(e => e.account_id === account.id);
                 const previousYearCount = accountEntries
@@ -105,21 +99,15 @@ const PublicReportsPage = () => {
                     .reduce((sum, e) => sum + (e.count || 0), 0);
                 return { ...account, previousYear: previousYearCount, comparisonTitle: title };
             });
-
             setAccountStats(enhancedStats);
-        } catch (err) {
-            console.error('Error loading account stats:', err);
-            setAccountStats([]);
-        }
+        } catch (err) { console.error('Error loading account stats:', err); setAccountStats([]); }
     };
 
-    // Year picker re-fetch — only triggered by user action, not on load
     const handleYearChange = async (rangeOverride) => {
         const { start, end, year, type } = rangeOverride || {};
         let startDate = start || `${year || selectedPreviousYear}-01-01`;
         let endDate = end || `${year || selectedPreviousYear}-12-31`;
         let title = type === 'custom' ? 'Custom Period' : (year === currentYear - 1 ? 'Previous Year' : `${year}`);
-
         try {
             const [data, entriesRes] = await Promise.all([
                 getAccountStats(),
@@ -129,62 +117,41 @@ const PublicReportsPage = () => {
                     Query.limit(2000)
                 ])
             ]);
-
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entriesRes.documents.filter(e => e.account_id === account.id);
                 const previousYearCount = accountEntries.reduce((sum, e) => sum + (e.count || 0), 0);
                 return { ...account, previousYear: previousYearCount, comparisonTitle: title };
             });
-
             setAccountStats(enhancedStats);
-        } catch (err) {
-            console.error('Error updating year stats:', err);
-        }
+        } catch (err) { console.error('Error updating year stats:', err); }
     };
 
-    // ─── RECENT USERS — one batch link fetch, not one per user ──────────────────
-
+    // ─── RECENT USERS ────────────────────────────────────────────
     const loadRecentUsers = async (shared) => {
         try {
             const recentUserDocs = [...shared.allUsers]
                 .filter(u => u.is_active)
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                 .slice(0, 8);
-
             const recentUserIds = recentUserDocs.map(u => u.$id);
-
-            // ONE fetch for all links instead of one per user
             let allLinks = [];
             try {
-                const linksResponse = await databases.listDocuments(
-                    DATABASE_ID,
-                    COLLECTIONS.USER_ACCOUNT_LINKS,
-                    [Query.equal('user_id', recentUserIds), Query.limit(100)]
-                );
+                const linksResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, [Query.equal('user_id', recentUserIds), Query.limit(100)]);
                 allLinks = linksResponse.documents;
-            } catch { /* links optional */ }
-
+            } catch {}
             const enrichedUsers = recentUserDocs.map(user => {
                 const userLinks = allLinks.filter(l => l.user_id === user.$id);
                 const accountIds = userLinks.map(l => l.account_id);
-                const accounts = shared.allAccounts
-                    .filter(a => accountIds.includes(a.$id))
-                    .map(a => a.name);
-
+                const accounts = shared.allAccounts.filter(a => accountIds.includes(a.$id)).map(a => a.name);
                 const userEntries = shared.allEntries.filter(e => e.user_id === user.$id);
                 const totalCount = userEntries.reduce((sum, e) => sum + (e.count || 0), 0);
-
                 return { ...user, id: user.$id, accounts, totalCount };
             });
-
             setRecentUsers(enrichedUsers);
-        } catch (err) {
-            console.error('Error loading recent users:', err);
-        }
+        } catch (err) { console.error('Error loading recent users:', err); }
     };
 
-    // ─── ALL REMAINING FUNCTIONS USE shared, NO EXTRA FETCHES ───────────────────
-
+    // ─── ALL REMAINING — USE shared, NO EXTRA FETCHES ────────────
     const loadUserTotals = async (shared) => {
         try {
             const userMap = {};
@@ -192,77 +159,52 @@ const PublicReportsPage = () => {
                 if (!userMap[entry.user_id]) userMap[entry.user_id] = 0;
                 userMap[entry.user_id] += entry.count || 0;
             });
-
             const totals = shared.allUsers
                 .map(user => ({ name: user.name, city: user.city, total: userMap[user.$id] || 0 }))
                 .filter(u => u.total > 0)
                 .sort((a, b) => b.total - a.total)
                 .slice(0, 10);
-
             setUserTotals(totals);
-        } catch (err) {
-            console.error('Error loading user totals:', err);
-        }
+        } catch (err) { console.error('Error loading user totals:', err); }
     };
 
     const loadDailyData = async (shared) => {
         const last7Days = [];
         for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
+            const date = new Date(); date.setDate(date.getDate() - i);
             last7Days.push(date.toISOString().split('T')[0]);
         }
         try {
             const dailyTotals = last7Days.map(date => ({
                 date: new Date(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' }),
-                count: shared.allEntries
-                    .filter(e => e.entry_date === date)
-                    .reduce((sum, e) => sum + (e.count || 0), 0)
+                count: shared.allEntries.filter(e => e.entry_date === date).reduce((sum, e) => sum + (e.count || 0), 0)
             }));
             setDailyData(dailyTotals);
-        } catch (err) {
-            console.error('Error loading daily data:', err);
-        }
+        } catch (err) { console.error('Error loading daily data:', err); }
     };
 
     const loadWeeklyData = async (shared) => {
         const last4Weeks = [];
         for (let i = 3; i >= 0; i--) {
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - (i * 7) - 6);
-            const endDate = new Date();
-            endDate.setDate(endDate.getDate() - (i * 7));
-            last4Weeks.push({
-                label: `Week ${4 - i}`,
-                start: startDate.toISOString().split('T')[0],
-                end: endDate.toISOString().split('T')[0]
-            });
+            const startDate = new Date(); startDate.setDate(startDate.getDate() - (i * 7) - 6);
+            const endDate = new Date(); endDate.setDate(endDate.getDate() - (i * 7));
+            last4Weeks.push({ label: `Week ${4 - i}`, start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] });
         }
         try {
             const weeklyTotals = last4Weeks.map(week => ({
                 week: week.label,
-                count: shared.allEntries
-                    .filter(e => e.entry_date >= week.start && e.entry_date <= week.end)
-                    .reduce((sum, e) => sum + (e.count || 0), 0)
+                count: shared.allEntries.filter(e => e.entry_date >= week.start && e.entry_date <= week.end).reduce((sum, e) => sum + (e.count || 0), 0)
             }));
             setWeeklyData(weeklyTotals);
-        } catch (err) {
-            console.error('Error loading weekly data:', err);
-        }
+        } catch (err) { console.error('Error loading weekly data:', err); }
     };
 
     const loadSourceRatio = async (shared) => {
         try {
-            const manual = shared.allEntries
-                .filter(e => e.source_type === 'manual')
-                .reduce((sum, e) => sum + (e.count || 0), 0);
-            const audio = shared.allEntries
-                .filter(e => e.source_type === 'audio')
-                .reduce((sum, e) => sum + (e.count || 0), 0);
+            const manual = shared.allEntries.filter(e => e.source_type === 'manual').reduce((sum, e) => sum + (e.count || 0), 0);
+            const audio  = shared.allEntries.filter(e => e.source_type === 'audio').reduce((sum, e) => sum + (e.count || 0), 0);
             setSourceRatio([{ name: 'Manual', value: manual }, { name: 'Audio', value: audio }]);
-        } catch (err) {
-            console.error('Error loading source ratio:', err);
-        }
+        } catch (err) { console.error('Error loading source ratio:', err); }
     };
 
     const loadCityStats = async (shared) => {
@@ -275,18 +217,14 @@ const PublicReportsPage = () => {
                     cityMap[user.city].count += userEntries.reduce((sum, e) => sum + (e.count || 0), 0);
                 }
             });
-            const sorted = Object.values(cityMap).sort((a, b) => b.count - a.count).slice(0, 6);
-            setCityStats(sorted);
-        } catch (err) {
-            console.error('Error loading city stats:', err);
-        }
+            setCityStats(Object.values(cityMap).sort((a, b) => b.count - a.count).slice(0, 6));
+        } catch (err) { console.error('Error loading city stats:', err); }
     };
 
     const loadNewDevotees = async (shared) => {
         const last7Days = [];
         for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
+            const date = new Date(); date.setDate(date.getDate() - i);
             last7Days.push(date.toISOString().split('T')[0]);
         }
         try {
@@ -295,14 +233,11 @@ const PublicReportsPage = () => {
                 count: shared.allUsers.filter(u => u.created_at?.split('T')[0] === date).length
             }));
             setNewDevotees(dailyNew);
-        } catch (err) {
-            console.error('Error loading new devotees:', err);
-        }
+        } catch (err) { console.error('Error loading new devotees:', err); }
     };
 
     const loadTopGrowing = async (shared) => {
-        const weekStart = new Date();
-        weekStart.setDate(weekStart.getDate() - 7);
+        const weekStart = new Date(); weekStart.setDate(weekStart.getDate() - 7);
         const weekStartStr = weekStart.toISOString().split('T')[0];
         try {
             const recentEntries = shared.allEntries.filter(e => e.entry_date >= weekStartStr);
@@ -312,17 +247,10 @@ const PublicReportsPage = () => {
                 if (!accountMap[name]) accountMap[name] = 0;
                 accountMap[name] += entry.count || 0;
             });
-            const sorted = Object.entries(accountMap)
-                .map(([name, count]) => ({
-                    name: name.length > 15 ? name.substring(0, 15) + '...' : name,
-                    growth: count
-                }))
-                .sort((a, b) => b.growth - a.growth)
-                .slice(0, 5);
-            setTopGrowing(sorted);
-        } catch (err) {
-            console.error('Error loading top growing:', err);
-        }
+            setTopGrowing(Object.entries(accountMap)
+                .map(([name, count]) => ({ name: name.length > 15 ? name.substring(0, 15) + '...' : name, growth: count }))
+                .sort((a, b) => b.growth - a.growth).slice(0, 5));
+        } catch (err) { console.error('Error loading top growing:', err); }
     };
 
     const loadTotalStats = async (shared) => {
@@ -332,49 +260,78 @@ const PublicReportsPage = () => {
                 const devotees = parseInt(entry.devotee_count);
                 return sum + (isNaN(devotees) || devotees === 0 ? 1 : devotees);
             }, 0);
-            setTotalStats({
-                users: shared.usersTotal,
-                entries: shared.entriesTotal,
-                total,
-                devotees: devoteesChanted
-            });
-        } catch (err) {
-            console.error('Error loading total stats:', err);
-        }
+            setTotalStats({ users: shared.usersTotal, entries: shared.entriesTotal, total, devotees: devoteesChanted });
+        } catch (err) { console.error('Error loading total stats:', err); }
     };
 
     const loadRecentEntries = async (shared) => {
         try {
-            // Small ordered fetch — only 15 rows, needed for correct ordering
-            const response = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTIONS.NAMA_ENTRIES,
-                [Query.orderDesc('created_at'), Query.limit(15)]
-            );
+            const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.orderDesc('created_at'), Query.limit(15)]);
             const enrichedEntries = response.documents.map(entry => ({
-                ...entry,
-                id: entry.$id,
+                ...entry, id: entry.$id,
                 users: shared.usersMap[entry.user_id] ? { name: shared.usersMap[entry.user_id].name } : null,
                 nama_accounts: shared.accountsMap[entry.account_id] ? { name: shared.accountsMap[entry.account_id].name } : null
             }));
             setRecentEntries(enrichedEntries);
-        } catch (err) {
-            console.error('Error loading recent entries:', err);
-        }
+        } catch (err) { console.error('Error loading recent entries:', err); }
     };
 
-    // ─── FORMATTERS ──────────────────────────────────────────────────────────────
+    // ── NEW: Devotee Statistics ───────────────────────────────────
+    // Groups all entries by user, calculates today/week/month/year/overall
+    // Zero extra DB calls — uses shared data already fetched
+    const loadDevoteeStats = async (shared) => {
+        try {
+            const now = new Date();
+            const today       = now.toISOString().split('T')[0];
+            const dayOfWeek   = now.getDay();
+            const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+            const weekStart   = new Date(now);
+            weekStart.setDate(now.getDate() + mondayOffset);
+            const weekStartStr  = weekStart.toISOString().split('T')[0];
+            const monthStart    = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const yearStart     = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
 
+            // Build per-user totals
+            const userMap = {};
+            shared.allEntries.forEach(entry => {
+                const uid = entry.user_id;
+                if (!userMap[uid]) {
+                    userMap[uid] = { today: 0, thisWeek: 0, thisMonth: 0, thisYear: 0, overall: 0 };
+                }
+                const count = entry.count || 0;
+                userMap[uid].overall += count;
+                if (entry.entry_date === today)         userMap[uid].today     += count;
+                if (entry.entry_date >= weekStartStr)   userMap[uid].thisWeek  += count;
+                if (entry.entry_date >= monthStart)     userMap[uid].thisMonth += count;
+                if (entry.entry_date >= yearStart)      userMap[uid].thisYear  += count;
+            });
+
+            // Join with user names — only include users who have at least one entry
+            const result = shared.allUsers
+                .filter(u => userMap[u.$id] && userMap[u.$id].overall > 0)
+                .map(u => ({
+                    id:        u.$id,
+                    name:      u.name,
+                    city:      u.city || '',
+                    country:   u.country || '',
+                    today:     userMap[u.$id].today,
+                    thisWeek:  userMap[u.$id].thisWeek,
+                    thisMonth: userMap[u.$id].thisMonth,
+                    thisYear:  userMap[u.$id].thisYear,
+                    overall:   userMap[u.$id].overall,
+                }))
+                .sort((a, b) => b.overall - a.overall); // default: sorted by overall
+
+            setDevoteeStats(result);
+        } catch (err) { console.error('Error loading devotee stats:', err); }
+    };
+
+    // ─── FORMATTERS ──────────────────────────────────────────────
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
         return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     };
-
-    const formatNumber = (num) => {
-        return num?.toLocaleString() || '0';
-    };
-
-    // ─── LOADING STATE ───────────────────────────────────────────────────────────
+    const formatNumber = (num) => num?.toLocaleString() || '0';
 
     if (loading) {
         return (
@@ -387,7 +344,16 @@ const PublicReportsPage = () => {
         );
     }
 
-    // ─── JSX — 100% IDENTICAL TO YOUR ORIGINAL ──────────────────────────────────
+    // ─── DATE HELPERS FOR COLUMN HEADERS ─────────────────────────
+    const todayLabel = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' });
+    const weekLabel  = (() => {
+        const now = new Date(); const day = now.getDay();
+        const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+        const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+        return `${mon.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' })} – ${sun.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' })}`;
+    })();
+    const monthLabel = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    const yearLabel  = new Date().getFullYear().toString();
 
     return (
         <div className="public-reports-page page-enter">
@@ -438,31 +404,25 @@ const PublicReportsPage = () => {
                             {recentUsers.map(user => (
                                 <div key={user.id} className="user-card-enhanced">
                                     <div className="user-avatar-lg">
-                                        {user.profile_photo ? (
-                                            <img src={user.profile_photo} alt={user.name} />
-                                        ) : (
-                                            <span>{user.name?.charAt(0).toUpperCase()}</span>
-                                        )}
+                                        {user.profile_photo
+                                            ? <img src={user.profile_photo} alt={user.name} />
+                                            : <span>{user.name?.charAt(0).toUpperCase()}</span>
+                                        }
                                     </div>
                                     <div className="user-details">
                                         <h4>{user.name}</h4>
                                         {user.city && (
                                             <p className="user-city">
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                                                    <circle cx="12" cy="10" r="3" />
+                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" />
                                                 </svg>
                                                 {user.city}
                                             </p>
                                         )}
                                         <div className="user-accounts">
-                                            {user.accounts?.slice(0, 2).map((acc, i) => (
-                                                <span key={i} className="mini-tag">{acc}</span>
-                                            ))}
+                                            {user.accounts?.slice(0, 2).map((acc, i) => <span key={i} className="mini-tag">{acc}</span>)}
                                         </div>
-                                        <div className="user-contribution">
-                                            <strong>{formatNumber(user.totalCount)}</strong> Namas
-                                        </div>
+                                        <div className="user-contribution"><strong>{formatNumber(user.totalCount)}</strong> Namas</div>
                                     </div>
                                 </div>
                             ))}
@@ -486,119 +446,40 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Account Level Reports */}
+                    {/* Account-wise Statistics */}
                     <section className="section account-stats">
-                        <div className="section-header">
-                            <h2>Account-wise Statistics</h2>
-                        </div>
+                        <div className="section-header"><h2>Account-wise Statistics</h2></div>
                         <div className="table-container">
                             <table className="table">
                                 <thead>
                                     <tr>
                                         <th>Sankalpa</th>
-                                        <th>
-                                            Today
-                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>
-                                                {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' })}
-                                            </div>
-                                        </th>
-                                        <th>
-                                            This Week
-                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>
-                                                {(() => {
-                                                    const now = new Date();
-                                                    const day = now.getDay();
-                                                    const monday = new Date(now);
-                                                    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
-                                                    const sunday = new Date(monday);
-                                                    sunday.setDate(monday.getDate() + 6);
-                                                    return `${monday.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' })} - ${sunday.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' })}`;
-                                                })()}
-                                            </div>
-                                        </th>
-                                        <th>
-                                            This Month
-                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>
-                                                {new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}
-                                            </div>
-                                        </th>
-                                        <th>
-                                            This Year
-                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>
-                                                {new Date().getFullYear()}
-                                            </div>
-                                        </th>
+                                        <th>Today<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{todayLabel}</div></th>
+                                        <th>This Week<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{weekLabel}</div></th>
+                                        <th>This Month<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{monthLabel}</div></th>
+                                        <th>This Year<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{yearLabel}</div></th>
                                         <th style={{ position: 'relative' }}>
-                                            <div
-                                                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }}
-                                                onClick={() => setShowYearPicker(!showYearPicker)}
-                                            >
+                                            <div style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', justifyContent: 'center' }} onClick={() => setShowYearPicker(!showYearPicker)}>
                                                 {accountStats[0]?.comparisonTitle || 'Previous Year'}
                                                 <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                                    <line x1="16" y1="2" x2="16" y2="6" />
-                                                    <line x1="8" y1="2" x2="8" y2="6" />
-                                                    <line x1="3" y1="10" x2="21" y2="10" />
+                                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
                                                 </svg>
                                             </div>
-                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal', textAlign: 'center' }}>
-                                                {selectedPreviousYear === 'custom' ? 'Custom Range' : selectedPreviousYear}
-                                            </div>
+                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal', textAlign: 'center' }}>{selectedPreviousYear === 'custom' ? 'Custom Range' : selectedPreviousYear}</div>
                                             {showYearPicker && (
-                                                <div style={{
-                                                    position: 'absolute', top: '100%', left: '50%',
-                                                    transform: 'translateX(-50%)', background: 'white',
-                                                    border: '1px solid #ddd', borderRadius: '8px', padding: '8px',
-                                                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '180px'
-                                                }}>
+                                                <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', background: 'white', border: '1px solid #ddd', borderRadius: '8px', padding: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 100, minWidth: '180px' }}>
                                                     {availableYears.map(year => (
-                                                        <div
-                                                            key={year}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setSelectedPreviousYear(year);
-                                                                setShowYearPicker(false);
-                                                                handleYearChange({ year });
-                                                            }}
-                                                            style={{
-                                                                padding: '8px 12px', cursor: 'pointer', borderRadius: '4px',
-                                                                background: year === selectedPreviousYear ? '#FF9933' : 'transparent',
-                                                                color: year === selectedPreviousYear ? 'white' : '#333',
-                                                                marginBottom: '4px'
-                                                            }}
-                                                        >
+                                                        <div key={year} onClick={(e) => { e.stopPropagation(); setSelectedPreviousYear(year); setShowYearPicker(false); handleYearChange({ year }); }}
+                                                            style={{ padding: '8px 12px', cursor: 'pointer', borderRadius: '4px', background: year === selectedPreviousYear ? '#FF9933' : 'transparent', color: year === selectedPreviousYear ? 'white' : '#333', marginBottom: '4px' }}>
                                                             {year}
                                                         </div>
                                                     ))}
                                                     <div style={{ height: '1px', background: '#eee', margin: '4px 0' }}></div>
                                                     <div onClick={(e) => e.stopPropagation()} style={{ padding: '8px', background: '#f9f9f9', borderRadius: '4px' }}>
                                                         <div style={{ fontSize: '0.8rem', fontWeight: 'bold', marginBottom: '4px' }}>Custom Range</div>
-                                                        <input
-                                                            type="date"
-                                                            value={customStartDate}
-                                                            onChange={(e) => setCustomStartDate(e.target.value)}
-                                                            style={{ width: '100%', marginBottom: '4px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
-                                                        />
-                                                        <input
-                                                            type="date"
-                                                            value={customEndDate}
-                                                            onChange={(e) => setCustomEndDate(e.target.value)}
-                                                            style={{ width: '100%', marginBottom: '4px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }}
-                                                        />
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (customStartDate && customEndDate) {
-                                                                    setSelectedPreviousYear('custom');
-                                                                    setShowYearPicker(false);
-                                                                    handleYearChange({ type: 'custom', start: customStartDate, end: customEndDate });
-                                                                }
-                                                            }}
-                                                            className="btn btn-sm btn-primary"
-                                                            style={{ width: '100%', marginTop: '4px', padding: '4px' }}
-                                                        >
-                                                            Apply
-                                                        </button>
+                                                        <input type="date" value={customStartDate} onChange={(e) => setCustomStartDate(e.target.value)} style={{ width: '100%', marginBottom: '4px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }} />
+                                                        <input type="date" value={customEndDate} onChange={(e) => setCustomEndDate(e.target.value)} style={{ width: '100%', marginBottom: '4px', padding: '4px', border: '1px solid #ddd', borderRadius: '4px' }} />
+                                                        <button onClick={(e) => { e.stopPropagation(); if (customStartDate && customEndDate) { setSelectedPreviousYear('custom'); setShowYearPicker(false); handleYearChange({ type: 'custom', start: customStartDate, end: customEndDate }); } }} className="btn btn-sm btn-primary" style={{ width: '100%', marginTop: '4px', padding: '4px' }}>Apply</button>
                                                     </div>
                                                 </div>
                                             )}
@@ -623,6 +504,107 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
+                    {/* ══════════════════════════════════════════════
+                        NEW: Devotee-wise Statistics
+                        Zero extra DB calls — uses shared data
+                        ══════════════════════════════════════════════ */}
+                    <section className="section devotee-stats">
+                        <div className="section-header">
+                            <h2>Devotee-wise Statistics</h2>
+                            <p style={{ fontSize: '0.85rem', color: '#888', margin: '4px 0 0' }}>
+                                Consolidated Nama count per devotee across all Sankalpas
+                            </p>
+                        </div>
+                        <div className="table-container">
+                            <table className="table">
+                                <thead>
+                                    <tr>
+                                        <th style={{ width: '32px' }}>#</th>
+                                        <th>Devotee</th>
+                                        <th>Location</th>
+                                        <th>
+                                            Today
+                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{todayLabel}</div>
+                                        </th>
+                                        <th>
+                                            This Week
+                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{weekLabel}</div>
+                                        </th>
+                                        <th>
+                                            This Month
+                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{monthLabel}</div>
+                                        </th>
+                                        <th>
+                                            This Year
+                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{yearLabel}</div>
+                                        </th>
+                                        <th>Overall</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {devoteeStats.length === 0 ? (
+                                        <tr>
+                                            <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
+                                                No data available
+                                            </td>
+                                        </tr>
+                                    ) : devoteeStats.map((devotee, index) => (
+                                        <tr key={devotee.id} style={{ background: index < 3 ? 'rgba(255,153,51,0.06)' : 'inherit' }}>
+                                            <td style={{ fontWeight: '700', color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#888', textAlign: 'center', fontSize: '0.9rem' }}>
+                                                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                                            </td>
+                                            <td>
+                                                <strong style={{ color: '#3a2000' }}>{devotee.name}</strong>
+                                            </td>
+                                            <td style={{ fontSize: '0.82rem', color: '#888' }}>
+                                                {[devotee.city, devotee.country].filter(Boolean).join(', ') || '—'}
+                                            </td>
+                                            <td style={{ fontWeight: devotee.today > 0 ? '600' : '400', color: devotee.today > 0 ? '#8B0000' : '#bbb' }}>
+                                                {devotee.today > 0 ? formatNumber(devotee.today) : '—'}
+                                            </td>
+                                            <td style={{ fontWeight: devotee.thisWeek > 0 ? '600' : '400', color: devotee.thisWeek > 0 ? '#555' : '#bbb' }}>
+                                                {devotee.thisWeek > 0 ? formatNumber(devotee.thisWeek) : '—'}
+                                            </td>
+                                            <td style={{ fontWeight: devotee.thisMonth > 0 ? '600' : '400', color: devotee.thisMonth > 0 ? '#555' : '#bbb' }}>
+                                                {devotee.thisMonth > 0 ? formatNumber(devotee.thisMonth) : '—'}
+                                            </td>
+                                            <td style={{ color: '#555' }}>
+                                                {devotee.thisYear > 0 ? formatNumber(devotee.thisYear) : '—'}
+                                            </td>
+                                            <td className="highlight-cell">
+                                                <strong>{formatNumber(devotee.overall)}</strong>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                {devoteeStats.length > 0 && (
+                                    <tfoot>
+                                        <tr style={{ background: '#fff9f0', fontWeight: '700', borderTop: '2px solid #e8c880' }}>
+                                            <td colSpan="3" style={{ padding: '10px 12px', color: '#8B0000' }}>
+                                                🕉 Community Total
+                                            </td>
+                                            <td style={{ color: '#8B0000' }}>
+                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.today, 0))}
+                                            </td>
+                                            <td style={{ color: '#8B0000' }}>
+                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisWeek, 0))}
+                                            </td>
+                                            <td style={{ color: '#8B0000' }}>
+                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisMonth, 0))}
+                                            </td>
+                                            <td style={{ color: '#8B0000' }}>
+                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisYear, 0))}
+                                            </td>
+                                            <td className="highlight-cell" style={{ color: '#8B0000' }}>
+                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.overall, 0))}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                    </section>
+
                     {/* Recent Nama Offerings */}
                     <section className="section recent-offerings">
                         <h2>Recent Nama Offerings</h2>
@@ -630,11 +612,7 @@ const PublicReportsPage = () => {
                             <table className="table">
                                 <thead>
                                     <tr>
-                                        <th>Devotee</th>
-                                        <th>Sankalpa</th>
-                                        <th>Count</th>
-                                        <th>Period (Start - End)</th>
-                                        <th>Type</th>
+                                        <th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period (Start - End)</th><th>Type</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -644,18 +622,13 @@ const PublicReportsPage = () => {
                                             <td><strong>{entry.nama_accounts?.name || '-'}</strong></td>
                                             <td className="highlight-cell">{formatNumber(entry.count)}</td>
                                             <td>
-                                                {entry.start_date || entry.end_date ? (
-                                                    <span className="date-range-badge">
-                                                        {formatDate(entry.start_date) || '...'} - {formatDate(entry.end_date) || '...'}
-                                                    </span>
-                                                ) : (
-                                                    <span className="single-day-badge">Single Day</span>
-                                                )}
+                                                {entry.start_date || entry.end_date
+                                                    ? <span className="date-range-badge">{formatDate(entry.start_date) || '...'} - {formatDate(entry.end_date) || '...'}</span>
+                                                    : <span className="single-day-badge">Single Day</span>
+                                                }
                                             </td>
                                             <td>
-                                                <span className={`badge badge-${entry.source_type === 'audio' ? 'info' : 'success'}`}>
-                                                    {entry.source_type}
-                                                </span>
+                                                <span className={`badge badge-${entry.source_type === 'audio' ? 'info' : 'success'}`}>{entry.source_type}</span>
                                             </td>
                                         </tr>
                                     ))}
@@ -668,33 +641,27 @@ const PublicReportsPage = () => {
                     <section className="section charts-section">
                         <h2>Advanced Metrics</h2>
                         <div className="charts-grid">
-
                             <div className="chart-card">
                                 <h3>Daily Nama Growth (7 Days)</h3>
                                 <ResponsiveContainer width="100%" height={220}>
                                     <AreaChart data={dailyData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                                         <Tooltip />
                                         <Area type="monotone" dataKey="count" stroke="#FF9933" fill="rgba(255,153,51,0.3)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card">
                                 <h3>Weekly Momentum</h3>
                                 <ResponsiveContainer width="100%" height={220}>
                                     <BarChart data={weeklyData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="week" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} />
-                                        <Tooltip />
-                                        <Bar dataKey="count" fill="#8B0000" radius={[4, 4, 0, 0]} />
+                                        <XAxis dataKey="week" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
+                                        <Tooltip /><Bar dataKey="count" fill="#8B0000" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card">
                                 <h3>Account Contribution</h3>
                                 <ResponsiveContainer width="100%" height={220}>
@@ -706,7 +673,6 @@ const PublicReportsPage = () => {
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card">
                                 <h3>Audio vs Manual</h3>
                                 <ResponsiveContainer width="100%" height={220}>
@@ -718,7 +684,6 @@ const PublicReportsPage = () => {
                                     </PieChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card">
                                 <h3>Top Cities</h3>
                                 <ResponsiveContainer width="100%" height={220}>
@@ -726,38 +691,30 @@ const PublicReportsPage = () => {
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                                         <XAxis type="number" tick={{ fontSize: 11 }} />
                                         <YAxis dataKey="city" type="category" tick={{ fontSize: 10 }} width={80} />
-                                        <Tooltip />
-                                        <Bar dataKey="count" fill="#9C27B0" radius={[0, 4, 4, 0]} />
+                                        <Tooltip /><Bar dataKey="count" fill="#9C27B0" radius={[0, 4, 4, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card">
                                 <h3>New Devotees (7 Days)</h3>
                                 <ResponsiveContainer width="100%" height={220}>
                                     <LineChart data={newDevotees}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                                        <Tooltip />
-                                        <Line type="monotone" dataKey="count" stroke="#E91E63" strokeWidth={2} dot={{ fill: '#E91E63' }} />
+                                        <XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                                        <Tooltip /><Line type="monotone" dataKey="count" stroke="#E91E63" strokeWidth={2} dot={{ fill: '#E91E63' }} />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
-
                             <div className="chart-card chart-card-wide">
                                 <h3>Top Growing Accounts (This Week)</h3>
                                 <ResponsiveContainer width="100%" height={220}>
                                     <BarChart data={topGrowing}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                                        <YAxis tick={{ fontSize: 11 }} />
-                                        <Tooltip />
-                                        <Bar dataKey="growth" fill="#00BCD4" radius={[4, 4, 0, 0]} />
+                                        <XAxis dataKey="name" tick={{ fontSize: 10 }} /><YAxis tick={{ fontSize: 11 }} />
+                                        <Tooltip /><Bar dataKey="growth" fill="#00BCD4" radius={[4, 4, 0, 0]} />
                                     </BarChart>
                                 </ResponsiveContainer>
                             </div>
-
                         </div>
                     </section>
 
