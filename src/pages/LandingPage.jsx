@@ -1,54 +1,23 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
 import yogiImage from '../assets/YogiPic01.jpg';
 import './LandingPage.css';
 
+// ─── MAINTENANCE MODE ───────────────────────────────────────────────────────
+// DB reads disabled until June 9, 2026 (Appwrite free tier cycle reset).
+// Remove this flag and restore the useEffect block after June 9.
+const MAINTENANCE_MODE = true;
+// ────────────────────────────────────────────────────────────────────────────
+
 const LandingPage = () => {
     const { user, loading: authLoading } = useAuth();
-    const [liveStats, setLiveStats] = useState({
+    const [liveStats] = useState({
         totalRegisteredUsers: 0,
         devoteesChanted: 0,
         totalNamaCount: 0,
         activeAccounts: 0
     });
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            const [accountsResult, namaResult, usersResult] = await Promise.allSettled([
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true), Query.limit(100)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1)]),
-            ]);
-
-            const accountCount = accountsResult.status === 'fulfilled'
-                ? (accountsResult.value.total || accountsResult.value.documents.length) : 0;
-
-            let totalNama = 0;
-            let totalDevoteesSum = 0;
-            if (namaResult.status === 'fulfilled') {
-                const docs = namaResult.value.documents || [];
-                totalNama = docs.reduce((sum, e) => sum + (e.count || 0), 0);
-                totalDevoteesSum = docs.reduce((sum, e) => {
-                    const d = parseInt(e.devotee_count);
-                    return sum + (isNaN(d) || d === 0 ? 1 : d);
-                }, 0);
-            }
-
-            const userCount = usersResult.status === 'fulfilled' ? (usersResult.value.total || 0) : 0;
-
-            setLiveStats({
-                totalRegisteredUsers: userCount,
-                devoteesChanted: totalDevoteesSum,
-                totalNamaCount: totalNama,
-                activeAccounts: accountCount
-            });
-            setLoading(false);
-        };
-        fetchData();
-    }, []);
 
     const formatNumber = (num) => {
         if (!num) return '0';
@@ -67,6 +36,52 @@ const LandingPage = () => {
             </div>
 
             <div className="landing-container">
+
+                {/* ── Maintenance Banner ── */}
+                {MAINTENANCE_MODE && (
+                    <div style={{
+                        background: 'linear-gradient(135deg, #fff8e1, #fff3cd)',
+                        border: '2px solid #FF9933',
+                        borderRadius: '12px',
+                        padding: '20px 24px',
+                        textAlign: 'center',
+                        margin: '0 auto 24px',
+                        maxWidth: '780px',
+                        boxShadow: '0 2px 12px rgba(255,153,51,0.15)'
+                    }}>
+                        <div style={{ fontSize: '1.5rem', marginBottom: '8px' }}>🙏 एक निवेदन · A Humble Notice 🙏</div>
+                        <p style={{ color: '#7a4800', fontWeight: '600', fontSize: '1rem', margin: '0 0 10px' }}>
+                            Namavruksha is currently under scheduled server maintenance and will resume fully on <strong>June 9, 2026</strong>.
+                        </p>
+                        <p style={{ color: '#5a3800', fontSize: '0.92rem', margin: '0 0 10px', lineHeight: '1.6' }}>
+                            Our hosting operates on a free tier, and the community's heartfelt participation in reports and statistics 
+                            has been so abundant that the monthly server limit was reached earlier than expected — 
+                            a blessing in disguise, and a sign of Bhagawan's grace flowing through all of you.
+                        </p>
+                        <div style={{
+                            background: '#fff',
+                            border: '1px solid #f0c060',
+                            borderRadius: '8px',
+                            padding: '12px 16px',
+                            margin: '10px auto',
+                            maxWidth: '620px',
+                            textAlign: 'left'
+                        }}>
+                            <p style={{ color: '#7a1a1a', fontWeight: '700', margin: '0 0 8px', fontSize: '0.95rem' }}>
+                                📋 What you should do right now:
+                            </p>
+                            <ul style={{ color: '#5a3800', fontSize: '0.9rem', lineHeight: '1.8', margin: 0, paddingLeft: '20px' }}>
+                                <li><strong>Do not attempt to login or use Forgot Password</strong> — authentication is unavailable during this period.</li>
+                                <li><strong>Please note down your Nama count</strong> on paper or in a notebook, day by day, until June 9.</li>
+                                <li>Once the site is back, you can enter up to <strong>5 days of backdated entries</strong> on June 9 — your Nama will not be lost.</li>
+                                <li>The site is fully restored when you see <strong>real numbers appear in the statistics section</strong> below. Until then, please wait patiently.</li>
+                            </ul>
+                        </div>
+                        <p style={{ color: '#8B6914', fontSize: '0.85rem', margin: '10px 0 0', fontStyle: 'italic' }}>
+                            "Only the Name remains when everything else falls away." — May Bhagawan's Nama continue in your heart uninterrupted. 🙏
+                        </p>
+                    </div>
+                )}
 
                 {/* ── Hero: split left/right ── */}
                 <header className="hero-section fade-in">
@@ -167,27 +182,42 @@ const LandingPage = () => {
                 {/* Live Stats */}
                 <section className="stats-inline fade-in-delay-1">
                     <div className="stat-item">
-                        <span className="stat-num">{loading ? '...' : formatNumber(liveStats.totalRegisteredUsers)}</span>
+                        <span className="stat-num" style={MAINTENANCE_MODE ? { color: '#ccc' } : {}}>
+                            {MAINTENANCE_MODE ? '–' : formatNumber(liveStats.totalRegisteredUsers)}
+                        </span>
                         <span className="stat-lbl">Total Users</span>
                     </div>
                     <div className="stat-item">
-                        <span className="stat-num">{loading ? '...' : formatNumber(liveStats.devoteesChanted)}</span>
+                        <span className="stat-num" style={MAINTENANCE_MODE ? { color: '#ccc' } : {}}>
+                            {MAINTENANCE_MODE ? '–' : formatNumber(liveStats.devoteesChanted)}
+                        </span>
                         <span className="stat-lbl">Devotees</span>
                     </div>
                     <div className="stat-item highlight">
-                        <span className="stat-num">{loading ? '...' : formatNumber(liveStats.totalNamaCount)}</span>
+                        <span className="stat-num" style={MAINTENANCE_MODE ? { color: '#ccc' } : {}}>
+                            {MAINTENANCE_MODE ? '–' : formatNumber(liveStats.totalNamaCount)}
+                        </span>
                         <span className="stat-lbl">Nama Offered</span>
                     </div>
                     <div className="stat-item">
-                        <span className="stat-num">{loading ? '...' : liveStats.activeAccounts}</span>
+                        <span className="stat-num" style={MAINTENANCE_MODE ? { color: '#ccc' } : {}}>
+                            {MAINTENANCE_MODE ? '–' : liveStats.activeAccounts}
+                        </span>
                         <span className="stat-lbl">Sankalpas</span>
                     </div>
+                    {MAINTENANCE_MODE && (
+                        <div style={{ width: '100%', textAlign: 'center', marginTop: '6px' }}>
+                            <span style={{ fontSize: '0.78rem', color: '#aaa', fontStyle: 'italic' }}>
+                                Statistics unavailable · Resumes June 9, 2026
+                            </span>
+                        </div>
+                    )}
                 </section>
 
                 {/* Action Cards */}
                 <section className="action-section fade-in-delay-2">
                     <div className="action-cards">
-                        <Link to="/register" className="action-card">
+                        <Link to="/register" className="action-card" style={MAINTENANCE_MODE ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                             <span className="action-icon">🌱</span>
                             <h3>Join Sankalpa</h3>
                             <p>Begin your Nama journey</p>
@@ -196,6 +226,12 @@ const LandingPage = () => {
                             <div className="action-card loading">
                                 <span className="action-icon">⏳</span>
                                 <h3>Loading...</h3>
+                            </div>
+                        ) : MAINTENANCE_MODE ? (
+                            <div className="action-card highlight" style={{ opacity: 0.4, cursor: 'not-allowed' }}>
+                                <span className="action-icon">🔑</span>
+                                <h3>Login</h3>
+                                <p>Unavailable · June 9</p>
                             </div>
                         ) : user ? (
                             <Link to="/dashboard" className="action-card highlight">
@@ -210,7 +246,7 @@ const LandingPage = () => {
                                 <p>Continue your offering</p>
                             </Link>
                         )}
-                        <Link to="/reports/public" className="action-card">
+                        <Link to="/reports/public" className="action-card" style={MAINTENANCE_MODE ? { opacity: 0.4, pointerEvents: 'none' } : {}}>
                             <span className="action-icon">📊</span>
                             <h3>Reports</h3>
                             <p>Community stats</p>
