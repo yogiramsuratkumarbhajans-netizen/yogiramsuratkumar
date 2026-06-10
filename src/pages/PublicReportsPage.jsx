@@ -10,8 +10,28 @@ import './PublicReportsPage.css';
 
 const COLORS = ['#FF9933', '#8B0000', '#4CAF50', '#2196F3', '#9C27B0', '#FF5722', '#00BCD4', '#E91E63'];
 
+// ─── CACHE CONFIG ────────────────────────────────────────────────────────────
+const CACHE_KEY = 'namavruksha_public_reports_v1';
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const readCache = () => {
+    try {
+        const raw = localStorage.getItem(CACHE_KEY);
+        if (!raw) return null;
+        const { ts, data } = JSON.parse(raw);
+        if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_KEY); return null; }
+        return data;
+    } catch { return null; }
+};
+
+const writeCache = (data) => {
+    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
 const PublicReportsPage = () => {
     const [loading, setLoading] = useState(true);
+    const [cacheAge, setCacheAge] = useState(null); // show "last updated X min ago"
     const [accountStats, setAccountStats] = useState([]);
     const [recentUsers, setRecentUsers] = useState([]);
     const [userTotals, setUserTotals] = useState([]);
@@ -23,8 +43,6 @@ const PublicReportsPage = () => {
     const [topGrowing, setTopGrowing] = useState([]);
     const [totalStats, setTotalStats] = useState({ users: 0, entries: 0, total: 0 });
     const [recentEntries, setRecentEntries] = useState([]);
-
-    // ── NEW: Devotee Statistics state ────────────────────────────
     const [devoteeStats, setDevoteeStats] = useState([]);
 
     const currentYear = new Date().getFullYear();
@@ -36,14 +54,25 @@ const PublicReportsPage = () => {
 
     useEffect(() => { loadAllData(); }, []);
 
-    // ─── SINGLE SHARED FETCH ─────────────────────────────────────
-    const fetchSharedData = async () => {
+    // ─── SINGLE SHARED FETCH (with cache) ────────────────────────
+    const fetchSharedData = async (forceRefresh = false) => {
+        if (!forceRefresh) {
+            const cached = readCache();
+            if (cached) {
+                // calculate age for display
+                try {
+                    const { ts } = JSON.parse(localStorage.getItem(CACHE_KEY));
+                    setCacheAge(Math.round((Date.now() - ts) / 60000));
+                } catch {}
+                return { ...cached, fromCache: true };
+            }
+        }
         const [entriesRes, usersRes, accountsRes] = await Promise.all([
             databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
             databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1000)]),
             databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)])
         ]);
-        return {
+        const data = {
             allEntries: entriesRes.documents,
             entriesTotal: entriesRes.total,
             allUsers: usersRes.documents,
@@ -52,11 +81,14 @@ const PublicReportsPage = () => {
             usersMap: Object.fromEntries(usersRes.documents.map(u => [u.$id, u])),
             accountsMap: Object.fromEntries(accountsRes.documents.map(a => [a.$id, a]))
         };
+        writeCache(data);
+        setCacheAge(0);
+        return data;
     };
 
-    const loadAllData = async () => {
+    const loadAllData = async (forceRefresh = false) => {
         try {
-            const shared = await fetchSharedData();
+            const shared = await fetchSharedData(forceRefresh);
             await Promise.all([
                 loadAccountStats(shared),
                 loadRecentUsers(shared),
@@ -69,7 +101,7 @@ const PublicReportsPage = () => {
                 loadTopGrowing(shared),
                 loadTotalStats(shared),
                 loadRecentEntries(shared),
-                loadDevoteeStats(shared),   // ← NEW
+                loadDevoteeStats(shared),
             ]);
         } catch (error) {
             console.error('Error loading data:', error);
@@ -104,21 +136,21 @@ const PublicReportsPage = () => {
     };
 
     const handleYearChange = async (rangeOverride) => {
+        // Year-picker filter works off cached data — zero extra DB reads
         const { start, end, year, type } = rangeOverride || {};
-        let startDate = start || `${year || selectedPreviousYear}-01-01`;
-        let endDate = end || `${year || selectedPreviousYear}-12-31`;
-        let title = type === 'custom' ? 'Custom Period' : (year === currentYear - 1 ? 'Previous Year' : `${year}`);
+        const startDate = start || `${year || selectedPreviousYear}-01-01`;
+        const endDate   = end   || `${year || selectedPreviousYear}-12-31`;
+        const title = type === 'custom' ? 'Custom Period' : (year === currentYear - 1 ? 'Previous Year' : `${year}`);
         try {
-            const [data, entriesRes] = await Promise.all([
-                getAccountStats(),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [
-                    Query.greaterThanEqual('entry_date', startDate),
-                    Query.lessThanEqual('entry_date', endDate),
-                    Query.limit(2000)
-                ])
-            ]);
+            const cached = readCache();
+            const entries = cached?.allEntries || [];
+            const data = await getAccountStats();
             const enhancedStats = (data || []).map(account => {
-                const accountEntries = entriesRes.documents.filter(e => e.account_id === account.id);
+                const accountEntries = entries.filter(e =>
+                    e.account_id === account.id &&
+                    e.entry_date >= startDate &&
+                    e.entry_date <= endDate
+                );
                 const previousYearCount = accountEntries.reduce((sum, e) => sum + (e.count || 0), 0);
                 return { ...account, previousYear: previousYearCount, comparisonTitle: title };
             });
@@ -266,8 +298,11 @@ const PublicReportsPage = () => {
 
     const loadRecentEntries = async (shared) => {
         try {
-            const response = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.orderDesc('created_at'), Query.limit(15)]);
-            const enrichedEntries = response.documents.map(entry => ({
+            // Use cached entries sorted by created_at — no extra DB call
+            const sorted = [...shared.allEntries]
+                .sort((a, b) => new Date(b.$createdAt || b.created_at) - new Date(a.$createdAt || a.created_at))
+                .slice(0, 15);
+            const enrichedEntries = sorted.map(entry => ({
                 ...entry, id: entry.$id,
                 users: shared.usersMap[entry.user_id] ? { name: shared.usersMap[entry.user_id].name } : null,
                 nama_accounts: shared.accountsMap[entry.account_id] ? { name: shared.accountsMap[entry.account_id].name } : null
@@ -276,9 +311,7 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading recent entries:', err); }
     };
 
-    // ── NEW: Devotee Statistics ───────────────────────────────────
-    // Groups all entries by user, calculates today/week/month/year/overall
-    // Zero extra DB calls — uses shared data already fetched
+    // ── Devotee Statistics ────────────────────────────────────────
     const loadDevoteeStats = async (shared) => {
         try {
             const now = new Date();
@@ -291,36 +324,27 @@ const PublicReportsPage = () => {
             const monthStart    = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
             const yearStart     = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
 
-            // Build per-user totals
             const userMap = {};
             shared.allEntries.forEach(entry => {
                 const uid = entry.user_id;
-                if (!userMap[uid]) {
-                    userMap[uid] = { today: 0, thisWeek: 0, thisMonth: 0, thisYear: 0, overall: 0 };
-                }
+                if (!userMap[uid]) userMap[uid] = { today: 0, thisWeek: 0, thisMonth: 0, thisYear: 0, overall: 0 };
                 const count = entry.count || 0;
                 userMap[uid].overall += count;
-                if (entry.entry_date === today)         userMap[uid].today     += count;
-                if (entry.entry_date >= weekStartStr)   userMap[uid].thisWeek  += count;
-                if (entry.entry_date >= monthStart)     userMap[uid].thisMonth += count;
-                if (entry.entry_date >= yearStart)      userMap[uid].thisYear  += count;
+                if (entry.entry_date === today)       userMap[uid].today     += count;
+                if (entry.entry_date >= weekStartStr) userMap[uid].thisWeek  += count;
+                if (entry.entry_date >= monthStart)   userMap[uid].thisMonth += count;
+                if (entry.entry_date >= yearStart)    userMap[uid].thisYear  += count;
             });
 
-            // Join with user names — only include users who have at least one entry
             const result = shared.allUsers
                 .filter(u => userMap[u.$id] && userMap[u.$id].overall > 0)
                 .map(u => ({
-                    id:        u.$id,
-                    name:      u.name,
-                    city:      u.city || '',
-                    country:   u.country || '',
-                    today:     userMap[u.$id].today,
-                    thisWeek:  userMap[u.$id].thisWeek,
-                    thisMonth: userMap[u.$id].thisMonth,
-                    thisYear:  userMap[u.$id].thisYear,
-                    overall:   userMap[u.$id].overall,
+                    id: u.$id, name: u.name, city: u.city || '', country: u.country || '',
+                    today: userMap[u.$id].today, thisWeek: userMap[u.$id].thisWeek,
+                    thisMonth: userMap[u.$id].thisMonth, thisYear: userMap[u.$id].thisYear,
+                    overall: userMap[u.$id].overall,
                 }))
-                .sort((a, b) => b.overall - a.overall); // default: sorted by overall
+                .sort((a, b) => b.overall - a.overall);
 
             setDevoteeStats(result);
         } catch (err) { console.error('Error loading devotee stats:', err); }
@@ -344,7 +368,6 @@ const PublicReportsPage = () => {
         );
     }
 
-    // ─── DATE HELPERS FOR COLUMN HEADERS ─────────────────────────
     const todayLabel = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' });
     const weekLabel  = (() => {
         const now = new Date(); const day = now.getDay();
@@ -361,8 +384,7 @@ const PublicReportsPage = () => {
                 <div className="container">
                     <Link to="/" className="back-link">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <line x1="19" y1="12" x2="5" y2="12" />
-                            <polyline points="12 19 5 12 12 5" />
+                            <line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" />
                         </svg>
                         Home
                     </Link>
@@ -370,6 +392,24 @@ const PublicReportsPage = () => {
                         <div className="om-symbol">ॐ</div>
                         <h1>Namavruksha Reports</h1>
                         <p>Community devotion statistics and insights</p>
+                    </div>
+
+                    {/* Cache status + manual refresh */}
+                    <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)' }}>
+                        {cacheAge === 0
+                            ? '✓ Live data loaded just now'
+                            : cacheAge !== null
+                                ? `Showing cached data from ${cacheAge} min ago · `
+                                : null
+                        }
+                        {cacheAge > 0 && (
+                            <span
+                                onClick={() => { setLoading(true); loadAllData(true); }}
+                                style={{ cursor: 'pointer', textDecoration: 'underline', color: '#FFD700' }}
+                            >
+                                Refresh now
+                            </span>
+                        )}
                     </div>
                 </div>
             </header>
@@ -504,10 +544,7 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* ══════════════════════════════════════════════
-                        NEW: Devotee-wise Statistics
-                        Zero extra DB calls — uses shared data
-                        ══════════════════════════════════════════════ */}
+                    {/* Devotee-wise Statistics */}
                     <section className="section devotee-stats">
                         <div className="section-header">
                             <h2>Devotee-wise Statistics</h2>
@@ -522,82 +559,40 @@ const PublicReportsPage = () => {
                                         <th style={{ width: '32px' }}>#</th>
                                         <th>Devotee</th>
                                         <th>Location</th>
-                                        <th>
-                                            Today
-                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{todayLabel}</div>
-                                        </th>
-                                        <th>
-                                            This Week
-                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{weekLabel}</div>
-                                        </th>
-                                        <th>
-                                            This Month
-                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{monthLabel}</div>
-                                        </th>
-                                        <th>
-                                            This Year
-                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{yearLabel}</div>
-                                        </th>
+                                        <th>Today<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{todayLabel}</div></th>
+                                        <th>This Week<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{weekLabel}</div></th>
+                                        <th>This Month<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{monthLabel}</div></th>
+                                        <th>This Year<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{yearLabel}</div></th>
                                         <th>Overall</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {devoteeStats.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>
-                                                No data available
-                                            </td>
-                                        </tr>
+                                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: '#888' }}>No data available</td></tr>
                                     ) : devoteeStats.map((devotee, index) => (
                                         <tr key={devotee.id} style={{ background: index < 3 ? 'rgba(255,153,51,0.06)' : 'inherit' }}>
                                             <td style={{ fontWeight: '700', color: index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : '#888', textAlign: 'center', fontSize: '0.9rem' }}>
                                                 {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
                                             </td>
-                                            <td>
-                                                <strong style={{ color: '#3a2000' }}>{devotee.name}</strong>
-                                            </td>
-                                            <td style={{ fontSize: '0.82rem', color: '#888' }}>
-                                                {[devotee.city, devotee.country].filter(Boolean).join(', ') || '—'}
-                                            </td>
-                                            <td style={{ fontWeight: devotee.today > 0 ? '600' : '400', color: devotee.today > 0 ? '#8B0000' : '#bbb' }}>
-                                                {devotee.today > 0 ? formatNumber(devotee.today) : '—'}
-                                            </td>
-                                            <td style={{ fontWeight: devotee.thisWeek > 0 ? '600' : '400', color: devotee.thisWeek > 0 ? '#555' : '#bbb' }}>
-                                                {devotee.thisWeek > 0 ? formatNumber(devotee.thisWeek) : '—'}
-                                            </td>
-                                            <td style={{ fontWeight: devotee.thisMonth > 0 ? '600' : '400', color: devotee.thisMonth > 0 ? '#555' : '#bbb' }}>
-                                                {devotee.thisMonth > 0 ? formatNumber(devotee.thisMonth) : '—'}
-                                            </td>
-                                            <td style={{ color: '#555' }}>
-                                                {devotee.thisYear > 0 ? formatNumber(devotee.thisYear) : '—'}
-                                            </td>
-                                            <td className="highlight-cell">
-                                                <strong>{formatNumber(devotee.overall)}</strong>
-                                            </td>
+                                            <td><strong style={{ color: '#3a2000' }}>{devotee.name}</strong></td>
+                                            <td style={{ fontSize: '0.82rem', color: '#888' }}>{[devotee.city, devotee.country].filter(Boolean).join(', ') || '—'}</td>
+                                            <td style={{ fontWeight: devotee.today > 0 ? '600' : '400', color: devotee.today > 0 ? '#8B0000' : '#bbb' }}>{devotee.today > 0 ? formatNumber(devotee.today) : '—'}</td>
+                                            <td style={{ fontWeight: devotee.thisWeek > 0 ? '600' : '400', color: devotee.thisWeek > 0 ? '#555' : '#bbb' }}>{devotee.thisWeek > 0 ? formatNumber(devotee.thisWeek) : '—'}</td>
+                                            <td style={{ fontWeight: devotee.thisMonth > 0 ? '600' : '400', color: devotee.thisMonth > 0 ? '#555' : '#bbb' }}>{devotee.thisMonth > 0 ? formatNumber(devotee.thisMonth) : '—'}</td>
+                                            <td style={{ color: '#555' }}>{devotee.thisYear > 0 ? formatNumber(devotee.thisYear) : '—'}</td>
+                                            <td className="highlight-cell"><strong>{formatNumber(devotee.overall)}</strong></td>
                                         </tr>
                                     ))}
                                 </tbody>
                                 {devoteeStats.length > 0 && (
                                     <tfoot>
                                         <tr style={{ background: '#fff9f0', fontWeight: '700', borderTop: '2px solid #e8c880' }}>
-                                            <td colSpan="3" style={{ padding: '10px 12px', color: '#8B0000' }}>
-                                                🕉 Community Total
-                                            </td>
-                                            <td style={{ color: '#8B0000' }}>
-                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.today, 0))}
-                                            </td>
-                                            <td style={{ color: '#8B0000' }}>
-                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisWeek, 0))}
-                                            </td>
-                                            <td style={{ color: '#8B0000' }}>
-                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisMonth, 0))}
-                                            </td>
-                                            <td style={{ color: '#8B0000' }}>
-                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.thisYear, 0))}
-                                            </td>
-                                            <td className="highlight-cell" style={{ color: '#8B0000' }}>
-                                                {formatNumber(devoteeStats.reduce((s, d) => s + d.overall, 0))}
-                                            </td>
+                                            <td colSpan="3" style={{ padding: '10px 12px', color: '#8B0000' }}>🕉 Community Total</td>
+                                            <td style={{ color: '#8B0000' }}>{formatNumber(devoteeStats.reduce((s, d) => s + d.today, 0))}</td>
+                                            <td style={{ color: '#8B0000' }}>{formatNumber(devoteeStats.reduce((s, d) => s + d.thisWeek, 0))}</td>
+                                            <td style={{ color: '#8B0000' }}>{formatNumber(devoteeStats.reduce((s, d) => s + d.thisMonth, 0))}</td>
+                                            <td style={{ color: '#8B0000' }}>{formatNumber(devoteeStats.reduce((s, d) => s + d.thisYear, 0))}</td>
+                                            <td className="highlight-cell" style={{ color: '#8B0000' }}>{formatNumber(devoteeStats.reduce((s, d) => s + d.overall, 0))}</td>
                                         </tr>
                                     </tfoot>
                                 )}
@@ -611,9 +606,7 @@ const PublicReportsPage = () => {
                         <div className="table-container">
                             <table className="table">
                                 <thead>
-                                    <tr>
-                                        <th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period (Start - End)</th><th>Type</th>
-                                    </tr>
+                                    <tr><th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period (Start - End)</th><th>Type</th></tr>
                                 </thead>
                                 <tbody>
                                     {recentEntries.map(entry => (
@@ -627,9 +620,7 @@ const PublicReportsPage = () => {
                                                     : <span className="single-day-badge">Single Day</span>
                                                 }
                                             </td>
-                                            <td>
-                                                <span className={`badge badge-${entry.source_type === 'audio' ? 'info' : 'success'}`}>{entry.source_type}</span>
-                                            </td>
+                                            <td><span className={`badge badge-${entry.source_type === 'audio' ? 'info' : 'success'}`}>{entry.source_type}</span></td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -647,8 +638,7 @@ const PublicReportsPage = () => {
                                     <AreaChart data={dailyData}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                                         <XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
-                                        <Tooltip />
-                                        <Area type="monotone" dataKey="count" stroke="#FF9933" fill="rgba(255,153,51,0.3)" />
+                                        <Tooltip /><Area type="monotone" dataKey="count" stroke="#FF9933" fill="rgba(255,153,51,0.3)" />
                                     </AreaChart>
                                 </ResponsiveContainer>
                             </div>
