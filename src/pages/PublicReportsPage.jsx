@@ -5,33 +5,19 @@ import {
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
 } from 'recharts';
 import { getAccountStats } from '../services/namaService';
-import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
+import { databases, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import './PublicReportsPage.css';
 
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const COLORS = ['#FF9933', '#8B0000', '#4CAF50', '#2196F3', '#9C27B0', '#FF5722', '#00BCD4', '#E91E63'];
-
-// ─── CACHE CONFIG ────────────────────────────────────────────────────────────
-const CACHE_KEY = 'namavruksha_public_reports_v1';
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
-
-const readCache = () => {
-    try {
-        const raw = localStorage.getItem(CACHE_KEY);
-        if (!raw) return null;
-        const { ts, data } = JSON.parse(raw);
-        if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_KEY); return null; }
-        return data;
-    } catch { return null; }
-};
-
-const writeCache = (data) => {
-    try { localStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data })); } catch {}
-};
+const CACHE_DOC_ID = 'main';
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PublicReportsPage = () => {
     const [loading, setLoading] = useState(true);
-    const [cacheAge, setCacheAge] = useState(null); // show "last updated X min ago"
+    const [generatedAt, setGeneratedAt] = useState(null);
+    const [usingFallback, setUsingFallback] = useState(false);
+
     const [accountStats, setAccountStats] = useState([]);
     const [recentUsers, setRecentUsers] = useState([]);
     const [userTotals, setUserTotals] = useState([]);
@@ -41,7 +27,7 @@ const PublicReportsPage = () => {
     const [cityStats, setCityStats] = useState([]);
     const [newDevotees, setNewDevotees] = useState([]);
     const [topGrowing, setTopGrowing] = useState([]);
-    const [totalStats, setTotalStats] = useState({ users: 0, entries: 0, total: 0 });
+    const [totalStats, setTotalStats] = useState({ users: 0, entries: 0, total: 0, devotees: 0 });
     const [recentEntries, setRecentEntries] = useState([]);
     const [devoteeStats, setDevoteeStats] = useState([]);
 
@@ -52,43 +38,55 @@ const PublicReportsPage = () => {
     const [customEndDate, setCustomEndDate] = useState('');
     const availableYears = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
+    // Cached shared data ref for year picker reuse
+    const [cachedShared, setCachedShared] = useState(null);
+
     useEffect(() => { loadAllData(); }, []);
 
-    // ─── SINGLE SHARED FETCH (with cache) ────────────────────────
-    const fetchSharedData = async (forceRefresh = false) => {
-        if (!forceRefresh) {
-            const cached = readCache();
-            if (cached) {
-                // calculate age for display
-                try {
-                    const { ts } = JSON.parse(localStorage.getItem(CACHE_KEY));
-                    setCacheAge(Math.round((Date.now() - ts) / 60000));
-                } catch {}
-                return { ...cached, fromCache: true };
-            }
+    // ─── STEP 1: Read from stats_cache (1 DB read per visitor) ───
+    const fetchSharedData = async () => {
+        try {
+            const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.STATS_CACHE, CACHE_DOC_ID);
+            const parsed = JSON.parse(doc.payload);
+            setGeneratedAt(parsed.generatedAt);
+            setUsingFallback(false);
+            return {
+                allEntries:   parsed.allEntries   || [],
+                entriesTotal: parsed.entriesTotal || 0,
+                allUsers:     parsed.allUsers     || [],
+                usersTotal:   parsed.usersTotal   || 0,
+                allAccounts:  parsed.allAccounts  || [],
+                allLinks:     parsed.allLinks     || [],
+                usersMap:     Object.fromEntries((parsed.allUsers || []).map(u => [u.$id, u])),
+                accountsMap:  Object.fromEntries((parsed.allAccounts || []).map(a => [a.$id, a]))
+            };
+        } catch (cacheErr) {
+            // Cache not yet built or unavailable — fall back to direct fetch
+            console.warn('Cache miss, falling back to direct fetch:', cacheErr.message);
+            setUsingFallback(true);
+            const { databases: db, Query } = await import('../appwriteClient');
+            const [entriesRes, usersRes, accountsRes] = await Promise.all([
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES,  [Query.limit(2000)]),
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS,         [Query.limit(1000)]),
+                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)])
+            ]);
+            return {
+                allEntries:   entriesRes.documents,
+                entriesTotal: entriesRes.total,
+                allUsers:     usersRes.documents,
+                usersTotal:   usersRes.total,
+                allAccounts:  accountsRes.documents,
+                allLinks:     [],
+                usersMap:     Object.fromEntries(usersRes.documents.map(u => [u.$id, u])),
+                accountsMap:  Object.fromEntries(accountsRes.documents.map(a => [a.$id, a]))
+            };
         }
-        const [entriesRes, usersRes, accountsRes] = await Promise.all([
-            databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
-            databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1000)]),
-            databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)])
-        ]);
-        const data = {
-            allEntries: entriesRes.documents,
-            entriesTotal: entriesRes.total,
-            allUsers: usersRes.documents,
-            usersTotal: usersRes.total,
-            allAccounts: accountsRes.documents,
-            usersMap: Object.fromEntries(usersRes.documents.map(u => [u.$id, u])),
-            accountsMap: Object.fromEntries(accountsRes.documents.map(a => [a.$id, a]))
-        };
-        writeCache(data);
-        setCacheAge(0);
-        return data;
     };
 
-    const loadAllData = async (forceRefresh = false) => {
+    const loadAllData = async () => {
         try {
-            const shared = await fetchSharedData(forceRefresh);
+            const shared = await fetchSharedData();
+            setCachedShared(shared);
             await Promise.all([
                 loadAccountStats(shared),
                 loadRecentUsers(shared),
@@ -103,14 +101,16 @@ const PublicReportsPage = () => {
                 loadRecentEntries(shared),
                 loadDevoteeStats(shared),
             ]);
-        } catch (error) {
-            console.error('Error loading data:', error);
+        } catch (err) {
+            console.error('Error loading data:', err);
         } finally {
             setLoading(false);
         }
     };
 
     // ─── ACCOUNT STATS ───────────────────────────────────────────
+    // Uses getAccountStats() with prefetchedEntries — ZERO extra DB reads
+    // All date logic runs in browser with new Date() — IST correct
     const loadAccountStats = async (shared, rangeOverride = null) => {
         let title = 'Previous Year';
         let startDate, endDate;
@@ -122,8 +122,9 @@ const PublicReportsPage = () => {
             title = year === (currentYear - 1) ? 'Previous Year' : `${year}`;
         }
         try {
-            const data = await getAccountStats();
-            const entries = shared?.allEntries || [];
+            // Pass prefetchedEntries — getAccountStats() will NOT fetch from DB
+            const data = await getAccountStats(shared.allEntries);
+            const entries = shared.allEntries || [];
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entries.filter(e => e.account_id === account.id);
                 const previousYearCount = accountEntries
@@ -135,16 +136,15 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading account stats:', err); setAccountStats([]); }
     };
 
+    // Year picker — filters cached entries in JS, zero DB reads
     const handleYearChange = async (rangeOverride) => {
-        // Year-picker filter works off cached data — zero extra DB reads
         const { start, end, year, type } = rangeOverride || {};
         const startDate = start || `${year || selectedPreviousYear}-01-01`;
         const endDate   = end   || `${year || selectedPreviousYear}-12-31`;
         const title = type === 'custom' ? 'Custom Period' : (year === currentYear - 1 ? 'Previous Year' : `${year}`);
         try {
-            const cached = readCache();
-            const entries = cached?.allEntries || [];
-            const data = await getAccountStats();
+            const entries = cachedShared?.allEntries || [];
+            const data = await getAccountStats(entries);
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entries.filter(e =>
                     e.account_id === account.id &&
@@ -165,25 +165,23 @@ const PublicReportsPage = () => {
                 .filter(u => u.is_active)
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                 .slice(0, 8);
-            const recentUserIds = recentUserDocs.map(u => u.$id);
-            let allLinks = [];
-            try {
-                const linksResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.USER_ACCOUNT_LINKS, [Query.equal('user_id', recentUserIds), Query.limit(100)]);
-                allLinks = linksResponse.documents;
-            } catch {}
+
+            // Use cached links — no extra DB call
+            const allLinks = shared.allLinks || [];
+
             const enrichedUsers = recentUserDocs.map(user => {
-                const userLinks = allLinks.filter(l => l.user_id === user.$id);
-                const accountIds = userLinks.map(l => l.account_id);
-                const accounts = shared.allAccounts.filter(a => accountIds.includes(a.$id)).map(a => a.name);
-                const userEntries = shared.allEntries.filter(e => e.user_id === user.$id);
-                const totalCount = userEntries.reduce((sum, e) => sum + (e.count || 0), 0);
+                const userLinks    = allLinks.filter(l => l.user_id === user.$id);
+                const accountIds   = userLinks.map(l => l.account_id);
+                const accounts     = shared.allAccounts.filter(a => accountIds.includes(a.$id)).map(a => a.name);
+                const userEntries  = shared.allEntries.filter(e => e.user_id === user.$id);
+                const totalCount   = userEntries.reduce((sum, e) => sum + (e.count || 0), 0);
                 return { ...user, id: user.$id, accounts, totalCount };
             });
             setRecentUsers(enrichedUsers);
         } catch (err) { console.error('Error loading recent users:', err); }
     };
 
-    // ─── ALL REMAINING — USE shared, NO EXTRA FETCHES ────────────
+    // ─── ALL COMPUTED FROM shared — ZERO EXTRA DB CALLS ──────────
     const loadUserTotals = async (shared) => {
         try {
             const userMap = {};
@@ -219,7 +217,7 @@ const PublicReportsPage = () => {
         const last4Weeks = [];
         for (let i = 3; i >= 0; i--) {
             const startDate = new Date(); startDate.setDate(startDate.getDate() - (i * 7) - 6);
-            const endDate = new Date(); endDate.setDate(endDate.getDate() - (i * 7));
+            const endDate   = new Date(); endDate.setDate(endDate.getDate() - (i * 7));
             last4Weeks.push({ label: `Week ${4 - i}`, start: startDate.toISOString().split('T')[0], end: endDate.toISOString().split('T')[0] });
         }
         try {
@@ -234,7 +232,7 @@ const PublicReportsPage = () => {
     const loadSourceRatio = async (shared) => {
         try {
             const manual = shared.allEntries.filter(e => e.source_type === 'manual').reduce((sum, e) => sum + (e.count || 0), 0);
-            const audio  = shared.allEntries.filter(e => e.source_type === 'audio').reduce((sum, e) => sum + (e.count || 0), 0);
+            const audio  = shared.allEntries.filter(e => e.source_type === 'audio').reduce((sum, e)  => sum + (e.count || 0), 0);
             setSourceRatio([{ name: 'Manual', value: manual }, { name: 'Audio', value: audio }]);
         } catch (err) { console.error('Error loading source ratio:', err); }
     };
@@ -298,7 +296,6 @@ const PublicReportsPage = () => {
 
     const loadRecentEntries = async (shared) => {
         try {
-            // Use cached entries sorted by created_at — no extra DB call
             const sorted = [...shared.allEntries]
                 .sort((a, b) => new Date(b.$createdAt || b.created_at) - new Date(a.$createdAt || a.created_at))
                 .slice(0, 15);
@@ -311,18 +308,18 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading recent entries:', err); }
     };
 
-    // ── Devotee Statistics ────────────────────────────────────────
+    // All date logic in browser — IST correct
     const loadDevoteeStats = async (shared) => {
         try {
             const now = new Date();
-            const today       = now.toISOString().split('T')[0];
-            const dayOfWeek   = now.getDay();
+            const today        = now.toISOString().split('T')[0];
+            const dayOfWeek    = now.getDay();
             const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-            const weekStart   = new Date(now);
+            const weekStart    = new Date(now);
             weekStart.setDate(now.getDate() + mondayOffset);
-            const weekStartStr  = weekStart.toISOString().split('T')[0];
-            const monthStart    = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-            const yearStart     = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
+            const weekStartStr = weekStart.toISOString().split('T')[0];
+            const monthStart   = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+            const yearStart    = new Date(now.getFullYear(), 0, 1).toISOString().split('T')[0];
 
             const userMap = {};
             shared.allEntries.forEach(entry => {
@@ -340,9 +337,11 @@ const PublicReportsPage = () => {
                 .filter(u => userMap[u.$id] && userMap[u.$id].overall > 0)
                 .map(u => ({
                     id: u.$id, name: u.name, city: u.city || '', country: u.country || '',
-                    today: userMap[u.$id].today, thisWeek: userMap[u.$id].thisWeek,
-                    thisMonth: userMap[u.$id].thisMonth, thisYear: userMap[u.$id].thisYear,
-                    overall: userMap[u.$id].overall,
+                    today:     userMap[u.$id].today,
+                    thisWeek:  userMap[u.$id].thisWeek,
+                    thisMonth: userMap[u.$id].thisMonth,
+                    thisYear:  userMap[u.$id].thisYear,
+                    overall:   userMap[u.$id].overall,
                 }))
                 .sort((a, b) => b.overall - a.overall);
 
@@ -356,6 +355,17 @@ const PublicReportsPage = () => {
         return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     };
     const formatNumber = (num) => num?.toLocaleString() || '0';
+
+    // Cache age label
+    const getCacheAgeLabel = () => {
+        if (!generatedAt) return null;
+        const diffMs  = Date.now() - new Date(generatedAt).getTime();
+        const diffMin = Math.round(diffMs / 60000);
+        if (diffMin < 2)  return 'Updated just now';
+        if (diffMin < 60) return `Updated ${diffMin} mins ago`;
+        const diffHr = Math.round(diffMin / 60);
+        return `Updated ${diffHr} hr${diffHr > 1 ? 's' : ''} ago`;
+    };
 
     if (loading) {
         return (
@@ -393,24 +403,17 @@ const PublicReportsPage = () => {
                         <h1>Namavruksha Reports</h1>
                         <p>Community devotion statistics and insights</p>
                     </div>
-
-                    {/* Cache status + manual refresh */}
-                    <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.78rem', color: 'rgba(255,255,255,0.7)' }}>
-                        {cacheAge === 0
-                            ? '✓ Live data loaded just now'
-                            : cacheAge !== null
-                                ? `Showing cached data from ${cacheAge} min ago · `
-                                : null
-                        }
-                        {cacheAge > 0 && (
-                            <span
-                                onClick={() => { setLoading(true); loadAllData(true); }}
-                                style={{ cursor: 'pointer', textDecoration: 'underline', color: '#FFD700' }}
-                            >
-                                Refresh now
-                            </span>
-                        )}
-                    </div>
+                    {/* Cache age info */}
+                    {generatedAt && (
+                        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>
+                            🕐 {getCacheAgeLabel()} · Statistics refresh every 12 hours
+                        </div>
+                    )}
+                    {usingFallback && (
+                        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.75rem', color: '#FFD700' }}>
+                            ⚡ Live data loaded
+                        </div>
+                    )}
                 </div>
             </header>
 
@@ -494,7 +497,11 @@ const PublicReportsPage = () => {
                                 <thead>
                                     <tr>
                                         <th>Sankalpa</th>
-                                        <th>Today<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{todayLabel}</div></th>
+                                        <th>
+                                            Today
+                                            <div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{todayLabel}</div>
+                                            <div style={{ fontSize: '0.6rem', color: '#aaa', fontWeight: 'normal' }}>↻ 12hr cache</div>
+                                        </th>
                                         <th>This Week<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{weekLabel}</div></th>
                                         <th>This Month<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{monthLabel}</div></th>
                                         <th>This Year<div style={{ fontSize: '0.65rem', color: '#888', fontWeight: 'normal' }}>{yearLabel}</div></th>
@@ -559,7 +566,11 @@ const PublicReportsPage = () => {
                                         <th style={{ width: '32px' }}>#</th>
                                         <th>Devotee</th>
                                         <th>Location</th>
-                                        <th>Today<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{todayLabel}</div></th>
+                                        <th>
+                                            Today
+                                            <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{todayLabel}</div>
+                                            <div style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.5)', fontWeight: 'normal' }}>↻ 12hr cache</div>
+                                        </th>
                                         <th>This Week<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{weekLabel}</div></th>
                                         <th>This Month<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{monthLabel}</div></th>
                                         <th>This Year<div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', fontWeight: 'normal' }}>{yearLabel}</div></th>
@@ -606,7 +617,7 @@ const PublicReportsPage = () => {
                         <div className="table-container">
                             <table className="table">
                                 <thead>
-                                    <tr><th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period (Start - End)</th><th>Type</th></tr>
+                                    <tr><th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period</th><th>Type</th></tr>
                                 </thead>
                                 <tbody>
                                     {recentEntries.map(entry => (
@@ -628,7 +639,7 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Charts */}
+                    {/* Charts — Audio vs Manual pie removed as requested */}
                     <section className="section charts-section">
                         <h2>Advanced Metrics</h2>
                         <div className="charts-grid">
@@ -658,17 +669,6 @@ const PublicReportsPage = () => {
                                     <PieChart>
                                         <Pie data={accountStats.filter(a => a.overall > 0)} dataKey="overall" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
                                             {accountStats.map((e, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                                        </Pie>
-                                        <Tooltip /><Legend />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="chart-card">
-                                <h3>Audio vs Manual</h3>
-                                <ResponsiveContainer width="100%" height={220}>
-                                    <PieChart>
-                                        <Pie data={sourceRatio} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={70}>
-                                            <Cell fill="#4CAF50" /><Cell fill="#2196F3" />
                                         </Pie>
                                         <Tooltip /><Legend />
                                     </PieChart>
