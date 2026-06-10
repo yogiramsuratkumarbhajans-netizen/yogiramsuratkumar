@@ -35,7 +35,8 @@ export const COLLECTIONS = {
     USER_DELETION_REQUESTS: 'user_deletion_requests',
     PASSWORD_RESETS: 'password_resets',
     FEEDBACK: 'feedback',
-    SATSANG_EVENTS: 'satsang_events'   // ← NEW
+    SATSANG_EVENTS: 'satsang_events',
+    STATS_CACHE: 'stats_cache'
 };
 
 // Initialize Appwrite Client
