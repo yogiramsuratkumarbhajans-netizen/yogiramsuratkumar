@@ -398,20 +398,41 @@ const PublicReportsPage = () => {
                         </svg>
                         Home
                     </Link>
-                    <div className="header-content">
+                  <div className="header-content">
                         <div className="om-symbol">ॐ</div>
                         <h1>Namavruksha Reports</h1>
                         <p>Community devotion statistics and insights</p>
                     </div>
-                    {/* Cache age info */}
+                    {/* Cache refresh info */}
                     {generatedAt && (
-                        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)' }}>
-                            🕐 {getCacheAgeLabel()} · Statistics refresh every 12 hours
+                        <div style={{
+                            textAlign: 'center',
+                            marginTop: '12px'
+                        }}>
+                            <div style={{
+                                padding: '10px 18px',
+                                background: 'rgba(255,255,255,0.15)',
+                                border: '1px solid rgba(255,255,255,0.25)',
+                                borderRadius: '8px',
+                                display: 'inline-block',
+                                color: '#fff'
+                            }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>
+                                    📊 Statistics last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
+                                        day: '2-digit', month: 'short', year: 'numeric',
+                                        hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
+                                    })} IST
+                                </div>
+                                <div style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.85 }}>
+                                    Due to free-tier hosting limits, statistics update every 12 hours.<br />
+                                    If today's count seems low, please check back after the next refresh.
+                                </div>
+                            </div>
                         </div>
                     )}
                     {usingFallback && (
-                        <div style={{ textAlign: 'center', marginTop: '6px', fontSize: '0.75rem', color: '#FFD700' }}>
-                            ⚡ Live data loaded
+                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.78rem', color: '#FFD700', fontWeight: '600' }}>
+                            ⚡ Live data loaded (cache temporarily unavailable)
                         </div>
                     )}
                 </div>
