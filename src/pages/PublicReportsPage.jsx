@@ -398,43 +398,25 @@ const PublicReportsPage = () => {
                         </svg>
                         Home
                     </Link>
-                  <div className="header-content">
+                   <div className="header-content">
                         <div className="om-symbol">ॐ</div>
                         <h1>Namavruksha Reports</h1>
-                        <p>Community devotion statistics and insights</p>
+                        {generatedAt ? (
+                            <p style={{ fontWeight: '700', color: '#8B0000' }}>
+                                📊 Last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
+                                    day: '2-digit', month: 'short', year: 'numeric',
+                                    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
+                                })} IST — updates every 12 hours. If today's count seems low, please check back after the next refresh.
+                            </p>
+                        ) : (
+                            <p>Community devotion statistics and insights</p>
+                        )}
+                        {usingFallback && (
+                            <p style={{ color: '#8B0000', fontWeight: '700' }}>
+                                ⚡ Live data loaded (cache temporarily unavailable)
+                            </p>
+                        )}
                     </div>
-                    {/* Cache refresh info */}
-                    {generatedAt && (
-                        <div style={{
-                            textAlign: 'center',
-                            marginTop: '14px'
-                        }}>
-                            <div style={{
-                                padding: '12px 20px',
-                                background: '#fff8e1',
-                                border: '1.5px solid #FF9933',
-                                borderRadius: '8px',
-                                display: 'inline-block',
-                                boxShadow: '0 2px 6px rgba(255,153,51,0.15)'
-                            }}>
-                                <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#7a1a1a' }}>
-                                    📊 Statistics last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
-                                        day: '2-digit', month: 'short', year: 'numeric',
-                                        hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
-                                    })} IST
-                                </div>
-                                <div style={{ fontSize: '0.78rem', marginTop: '5px', color: '#5a3800', fontWeight: '500' }}>
-                                    Due to free-tier hosting limits, statistics update every 12 hours.<br />
-                                    If today's count seems low, please check back after the next refresh.
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                    {usingFallback && (
-                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.8rem', color: '#8B0000', fontWeight: '700' }}>
-                            ⚡ Live data loaded (cache temporarily unavailable)
-                        </div>
-                    )}
                 </div>
             </header>
 
