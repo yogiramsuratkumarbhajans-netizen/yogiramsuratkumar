@@ -406,7 +406,11 @@ const PublicReportsPage = () => {
                                 📊 Last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
                                     day: '2-digit', month: 'short', year: 'numeric',
                                     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
-                                })} IST — updates every 12 hours. If today's count seems low, please check back after the next refresh.
+                                })} IST · Next refresh: {new Date(new Date(generatedAt).getTime() + 12 * 60 * 60 * 1000).toLocaleString('en-IN', {
+                                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
+                                })} IST
+                                <br />
+                                <span style={{ fontWeight: '500' }}>Due to free-tier hosting limits, statistics update every 12 hours. If today's count seems low, please check back after the next refresh.</span>
                             </p>
                         ) : (
                             <p>Community devotion statistics and insights</p>
