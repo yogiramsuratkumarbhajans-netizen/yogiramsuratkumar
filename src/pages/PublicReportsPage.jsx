@@ -1,17 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    LineChart, Line, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 import { getAccountStats } from '../services/namaService';
 import { databases, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import './PublicReportsPage.css';
 
-// ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const COLORS = ['#FF9933', '#8B0000', '#4CAF50', '#2196F3', '#9C27B0', '#FF5722', '#00BCD4', '#E91E63'];
 const CACHE_DOC_ID = 'main';
-// ─────────────────────────────────────────────────────────────────────────────
 
 const PublicReportsPage = () => {
     const [loading, setLoading] = useState(true);
@@ -38,12 +36,10 @@ const PublicReportsPage = () => {
     const [customEndDate, setCustomEndDate] = useState('');
     const availableYears = Array.from({ length: 6 }, (_, i) => currentYear - 1 - i);
 
-    // Cached shared data ref for year picker reuse
     const [cachedShared, setCachedShared] = useState(null);
 
     useEffect(() => { loadAllData(); }, []);
 
-    // ─── STEP 1: Read from stats_cache (1 DB read per visitor) ───
     const fetchSharedData = async () => {
         try {
             const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.STATS_CACHE, CACHE_DOC_ID);
@@ -61,7 +57,6 @@ const PublicReportsPage = () => {
                 accountsMap:  Object.fromEntries((parsed.allAccounts || []).map(a => [a.$id, a]))
             };
         } catch (cacheErr) {
-            // Cache not yet built or unavailable — fall back to direct fetch
             console.warn('Cache miss, falling back to direct fetch:', cacheErr.message);
             setUsingFallback(true);
             const { databases: db, Query } = await import('../appwriteClient');
@@ -108,9 +103,6 @@ const PublicReportsPage = () => {
         }
     };
 
-    // ─── ACCOUNT STATS ───────────────────────────────────────────
-    // Uses getAccountStats() with prefetchedEntries — ZERO extra DB reads
-    // All date logic runs in browser with new Date() — IST correct
     const loadAccountStats = async (shared, rangeOverride = null) => {
         let title = 'Previous Year';
         let startDate, endDate;
@@ -122,7 +114,6 @@ const PublicReportsPage = () => {
             title = year === (currentYear - 1) ? 'Previous Year' : `${year}`;
         }
         try {
-            // Pass prefetchedEntries — getAccountStats() will NOT fetch from DB
             const data = await getAccountStats(shared.allEntries);
             const entries = shared.allEntries || [];
             const enhancedStats = (data || []).map(account => {
@@ -136,7 +127,6 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading account stats:', err); setAccountStats([]); }
     };
 
-    // Year picker — filters cached entries in JS, zero DB reads
     const handleYearChange = async (rangeOverride) => {
         const { start, end, year, type } = rangeOverride || {};
         const startDate = start || `${year || selectedPreviousYear}-01-01`;
@@ -158,7 +148,6 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error updating year stats:', err); }
     };
 
-    // ─── RECENT USERS ────────────────────────────────────────────
     const loadRecentUsers = async (shared) => {
         try {
             const recentUserDocs = [...shared.allUsers]
@@ -166,7 +155,6 @@ const PublicReportsPage = () => {
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
                 .slice(0, 8);
 
-            // Use cached links — no extra DB call
             const allLinks = shared.allLinks || [];
 
             const enrichedUsers = recentUserDocs.map(user => {
@@ -181,7 +169,6 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading recent users:', err); }
     };
 
-    // ─── ALL COMPUTED FROM shared — ZERO EXTRA DB CALLS ──────────
     const loadUserTotals = async (shared) => {
         try {
             const userMap = {};
@@ -308,7 +295,6 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading recent entries:', err); }
     };
 
-    // All date logic in browser — IST correct
     const loadDevoteeStats = async (shared) => {
         try {
             const now = new Date();
@@ -349,23 +335,11 @@ const PublicReportsPage = () => {
         } catch (err) { console.error('Error loading devotee stats:', err); }
     };
 
-    // ─── FORMATTERS ──────────────────────────────────────────────
     const formatDate = (dateStr) => {
         if (!dateStr) return null;
         return new Date(dateStr).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
     };
     const formatNumber = (num) => num?.toLocaleString() || '0';
-
-    // Cache age label
-    const getCacheAgeLabel = () => {
-        if (!generatedAt) return null;
-        const diffMs  = Date.now() - new Date(generatedAt).getTime();
-        const diffMin = Math.round(diffMs / 60000);
-        if (diffMin < 2)  return 'Updated just now';
-        if (diffMin < 60) return `Updated ${diffMin} mins ago`;
-        const diffHr = Math.round(diffMin / 60);
-        return `Updated ${diffHr} hr${diffHr > 1 ? 's' : ''} ago`;
-    };
 
     if (loading) {
         return (
@@ -398,36 +372,50 @@ const PublicReportsPage = () => {
                         </svg>
                         Home
                     </Link>
-                   <div className="header-content">
+                    <div className="header-content">
                         <div className="om-symbol">ॐ</div>
                         <h1>Namavruksha Reports</h1>
-                        {generatedAt ? (
-                            <p style={{ fontWeight: '700', color: '#8B0000' }}>
+                        <p>Community devotion statistics and insights</p>
+                    </div>
+                </div>
+            </header>
+
+            {(generatedAt || usingFallback) && (
+                <div style={{ textAlign: 'center', padding: '12px 16px' }}>
+                    {generatedAt && (
+                        <div style={{
+                            display: 'inline-block',
+                            padding: '12px 20px',
+                            background: '#fff8e1',
+                            border: '1.5px solid #FF9933',
+                            borderRadius: '8px',
+                            boxShadow: '0 2px 6px rgba(255,153,51,0.15)',
+                            maxWidth: '600px'
+                        }}>
+                            <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#8B0000' }}>
                                 📊 Last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
                                     day: '2-digit', month: 'short', year: 'numeric',
                                     hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
                                 })} IST · Next refresh: {new Date(new Date(generatedAt).getTime() + 12 * 60 * 60 * 1000).toLocaleString('en-IN', {
                                     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
                                 })} IST
-                                <br />
-                                <span style={{ fontWeight: '500' }}>Due to free-tier hosting limits, statistics update every 12 hours. If today's count seems low, please check back after the next refresh.</span>
-                            </p>
-                        ) : (
-                            <p>Community devotion statistics and insights</p>
-                        )}
-                        {usingFallback && (
-                            <p style={{ color: '#8B0000', fontWeight: '700' }}>
-                                ⚡ Live data loaded (cache temporarily unavailable)
-                            </p>
-                        )}
-                    </div>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', marginTop: '5px', color: '#5a3800', fontWeight: '500' }}>
+                                Due to free-tier hosting limits, statistics update every 12 hours. If today's count seems low, please check back after the next refresh.
+                            </div>
+                        </div>
+                    )}
+                    {usingFallback && (
+                        <div style={{ fontSize: '0.8rem', color: '#8B0000', fontWeight: '700', marginTop: '6px' }}>
+                            ⚡ Live data loaded (cache temporarily unavailable)
+                        </div>
+                    )}
                 </div>
-            </header>
+            )}
 
             <main className="reports-main">
                 <div className="container">
 
-                    {/* Global Stats */}
                     <section className="global-stats">
                         <div className="stat-card highlight">
                             <div className="stat-value">{formatNumber(totalStats.total)}</div>
@@ -447,7 +435,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Recently Joined Users */}
                     <section className="section recently-joined">
                         <h2>Recently Joined Devotees</h2>
                         <div className="users-grid-enhanced">
@@ -479,7 +466,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Top Contributors */}
                     <section className="section user-totals">
                         <h2>Top Contributors</h2>
                         <div className="leaderboard">
@@ -496,7 +482,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Account-wise Statistics */}
                     <section className="section account-stats">
                         <div className="section-header"><h2>Account-wise Statistics</h2></div>
                         <div className="table-container">
@@ -558,7 +543,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Devotee-wise Statistics */}
                     <section className="section devotee-stats">
                         <div className="section-header">
                             <h2>Devotee-wise Statistics</h2>
@@ -618,7 +602,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Recent Nama Offerings */}
                     <section className="section recent-offerings">
                         <h2>Recent Nama Offerings</h2>
                         <div className="table-container">
@@ -646,7 +629,6 @@ const PublicReportsPage = () => {
                         </div>
                     </section>
 
-                    {/* Charts — Audio vs Manual pie removed as requested */}
                     <section className="section charts-section">
                         <h2>Advanced Metrics</h2>
                         <div className="charts-grid">
@@ -668,17 +650,6 @@ const PublicReportsPage = () => {
                                         <XAxis dataKey="week" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} />
                                         <Tooltip /><Bar dataKey="count" fill="#8B0000" radius={[4, 4, 0, 0]} />
                                     </BarChart>
-                                </ResponsiveContainer>
-                            </div>
-                            <div className="chart-card">
-                                <h3>Account Contribution</h3>
-                                <ResponsiveContainer width="100%" height={220}>
-                                    <PieChart>
-                                        <Pie data={accountStats.filter(a => a.overall > 0)} dataKey="overall" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
-                                            {accountStats.map((e, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                                        </Pie>
-                                        <Tooltip /><Legend />
-                                    </PieChart>
                                 </ResponsiveContainer>
                             </div>
                             <div className="chart-card">
