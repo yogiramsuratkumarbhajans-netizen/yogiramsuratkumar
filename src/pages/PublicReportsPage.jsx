@@ -407,23 +407,23 @@ const PublicReportsPage = () => {
                     {generatedAt && (
                         <div style={{
                             textAlign: 'center',
-                            marginTop: '12px'
+                            marginTop: '14px'
                         }}>
                             <div style={{
-                                padding: '10px 18px',
-                                background: 'rgba(255,255,255,0.15)',
-                                border: '1px solid rgba(255,255,255,0.25)',
+                                padding: '12px 20px',
+                                background: '#fff8e1',
+                                border: '1.5px solid #FF9933',
                                 borderRadius: '8px',
                                 display: 'inline-block',
-                                color: '#fff'
+                                boxShadow: '0 2px 6px rgba(255,153,51,0.15)'
                             }}>
-                                <div style={{ fontSize: '0.85rem', fontWeight: '600' }}>
+                                <div style={{ fontSize: '0.9rem', fontWeight: '700', color: '#7a1a1a' }}>
                                     📊 Statistics last refreshed: {new Date(generatedAt).toLocaleString('en-IN', {
                                         day: '2-digit', month: 'short', year: 'numeric',
                                         hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
                                     })} IST
                                 </div>
-                                <div style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.85 }}>
+                                <div style={{ fontSize: '0.78rem', marginTop: '5px', color: '#5a3800', fontWeight: '500' }}>
                                     Due to free-tier hosting limits, statistics update every 12 hours.<br />
                                     If today's count seems low, please check back after the next refresh.
                                 </div>
@@ -431,7 +431,7 @@ const PublicReportsPage = () => {
                         </div>
                     )}
                     {usingFallback && (
-                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.78rem', color: '#FFD700', fontWeight: '600' }}>
+                        <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '0.8rem', color: '#8B0000', fontWeight: '700' }}>
                             ⚡ Live data loaded (cache temporarily unavailable)
                         </div>
                     )}
