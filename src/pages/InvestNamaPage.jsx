@@ -6,6 +6,11 @@ import { submitMultipleNamaEntries, getUserStats } from '../services/namaService
 import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import './InvestNamaPage.css';
 
+// How long a user's stats stay valid in this browser tab's session before
+// we refetch from Appwrite. Repeated dashboard/invest-nama visits within
+// this window reuse the cached value instead of firing a new read.
+const STATS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 const InvestNamaPage = () => {
     const { user, linkedAccounts } = useAuth();
     const { success, error } = useToast();
@@ -38,10 +43,34 @@ const InvestNamaPage = () => {
         loadTodayStats();
     }, [user, linkedAccounts, navigate]);
 
-    const loadTodayStats = async () => {
+    // forceRefresh=true bypasses the session cache — used right after a
+    // successful submission, when we genuinely need fresh numbers.
+    const loadTodayStats = async (forceRefresh = false) => {
         try {
+            const cacheKey = `namavruksha_user_stats_${user.$id}`;
+
+            if (!forceRefresh) {
+                try {
+                    const cached = sessionStorage.getItem(cacheKey);
+                    if (cached) {
+                        const { stats, ts } = JSON.parse(cached);
+                        if (Date.now() - ts < STATS_CACHE_TTL_MS) {
+                            setTodayStats(stats);
+                            return;
+                        }
+                    }
+                } catch (readErr) {
+                    // Corrupt/unavailable cache entry — fall through to a live fetch
+                }
+            }
+
             const stats = await getUserStats(user.$id);
             setTodayStats(stats);
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify({ stats, ts: Date.now() }));
+            } catch (writeErr) {
+                // sessionStorage unavailable/full — non-fatal
+            }
         } catch (err) { console.error('Error loading stats:', err); }
     };
 
@@ -119,7 +148,7 @@ const InvestNamaPage = () => {
             setMinutes(resetMinutes);
             setEntryDate(getTodayStr());
             setDevoteeCount('');
-            loadTodayStats();
+            loadTodayStats(true); // force a fresh read — a new entry was just submitted
             setTimeout(() => setSubmissionSuccess(null), 5000);
         } catch (err) {
             error('Failed to submit. Please try again.');
