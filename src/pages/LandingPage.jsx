@@ -6,6 +6,8 @@ import yogiImage from '../assets/YogiPic01.jpg';
 import './LandingPage.css';
 
 const MAINTENANCE_MODE = false;
+const CACHE_DOC_ID = 'main';
+const LOCAL_CACHE_KEY = 'namavruksha_reports_local_cache';
 
 const LandingPage = () => {
     const { user, loading: authLoading } = useAuth();
@@ -17,39 +19,60 @@ const LandingPage = () => {
     });
     const [loading, setLoading] = useState(true);
 
+    // Computes homepage stats from a stats_cache payload (same shape written
+    // by the BuildStatsCache function and consumed by PublicReportsPage).
+    const computeStatsFromPayload = (parsed) => {
+        const entries = parsed.allEntries || [];
+        const accounts = parsed.allAccounts || [];
+        const totalNama = entries.reduce((sum, e) => sum + (e.count || 0), 0);
+        const devoteesChanted = entries.reduce((sum, e) => {
+            const d = parseInt(e.devotee_count);
+            return sum + (isNaN(d) || d === 0 ? 1 : d);
+        }, 0);
+        return {
+            totalRegisteredUsers: parsed.usersTotal || 0,
+            devoteesChanted,
+            totalNamaCount: totalNama,
+            activeAccounts: accounts.filter(a => a.is_active).length
+        };
+    };
+
     useEffect(() => {
         if (MAINTENANCE_MODE) { setLoading(false); return; }
+
+        // Previously this page fired THREE live, uncached Appwrite queries
+        // (nama_accounts, nama_entries limit 2000, users) on every single
+        // homepage load — the highest-traffic page on the site. That was the
+        // single largest contributor to the read-quota blowout. It now reads
+        // the same 1-document stats_cache used by the Reports page, and
+        // never falls back to a live query if that read fails.
         const fetchData = async () => {
-            const [accountsResult, namaResult, usersResult] = await Promise.allSettled([
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true), Query.limit(100)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS, [Query.limit(1)]),
-            ]);
-
-            const accountCount = accountsResult.status === 'fulfilled'
-                ? (accountsResult.value.total || accountsResult.value.documents.length) : 0;
-
-            let totalNama = 0;
-            let totalDevoteesSum = 0;
-            if (namaResult.status === 'fulfilled') {
-                const docs = namaResult.value.documents || [];
-                totalNama = docs.reduce((sum, e) => sum + (e.count || 0), 0);
-                totalDevoteesSum = docs.reduce((sum, e) => {
-                    const d = parseInt(e.devotee_count);
-                    return sum + (isNaN(d) || d === 0 ? 1 : d);
-                }, 0);
+            try {
+                const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.STATS_CACHE, CACHE_DOC_ID);
+                const parsed = JSON.parse(doc.payload);
+                setLiveStats(computeStatsFromPayload(parsed));
+                try {
+                    localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(parsed));
+                } catch (storageErr) {
+                    // localStorage unavailable/full — non-fatal
+                }
+            } catch (err) {
+                console.warn('Homepage cache read failed, trying local backup:', err.message);
+                try {
+                    const backup = localStorage.getItem(LOCAL_CACHE_KEY);
+                    if (backup) {
+                        setLiveStats(computeStatsFromPayload(JSON.parse(backup)));
+                    } else {
+                        setLiveStats({ totalRegisteredUsers: 0, devoteesChanted: 0, totalNamaCount: 0, activeAccounts: 0 });
+                    }
+                } catch (backupErr) {
+                    setLiveStats({ totalRegisteredUsers: 0, devoteesChanted: 0, totalNamaCount: 0, activeAccounts: 0 });
+                }
+            } finally {
+                setLoading(false);
             }
-
-            const userCount = usersResult.status === 'fulfilled' ? (usersResult.value.total || 0) : 0;
-
-            setLiveStats({
-                totalRegisteredUsers: userCount,
-                devoteesChanted: totalDevoteesSum,
-                totalNamaCount: totalNama,
-                activeAccounts: accountCount
-            });
-            setLoading(false);
         };
+
         fetchData();
     }, []);
 
@@ -82,22 +105,26 @@ const LandingPage = () => {
                             <p className="hero-tagline">The Divine Tree of the Holy Name</p>
                             <p className="hero-description">
                                 <span className="highlight-text">Namavruksha</span> is a humble digital space for devotees to chant and count Nama with sincerity,
-                                and offer it together as a collective spiritual <span className="highlight-text">sankalpa</span>.
+                                and offer it together as a collective spiritual <span className="highlight-text">Sankalpa</span>.
                             </p>
-                            <div className="greeting-text">🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏</div>
+                            <div className="greeting-text">🙏 <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Jaya Guru Raya! 🙏</div>
                         </div>
 
-                        {/* RIGHT */}
+                        {/* RIGHT — approved redesign: evergreen "Ongoing" tag replaces
+                            the stale "June 2025 · Live now" date badge, so this panel
+                            never goes out of date again. "Yogi Ramsuratkumar" is locked
+                            with white-space: nowrap everywhere it appears — it must
+                            never wrap across two lines. */}
                         <div className="hero-right">
                             <div className="challenge-panel">
                                 <div className="challenge-header">
-                                    <span className="challenge-live-tag">June 2025 · Live now</span>
-                                    <h2 className="challenge-title">June 1008 Nama Sadhana</h2>
-                                    <p className="challenge-subtitle">June Consistency Daily Chanting Challenge</p>
+                                    <span className="challenge-live-tag">Ongoing</span>
+                                    <h2 className="challenge-title">1008 Nama Sadhana</h2>
+                                    <p className="challenge-subtitle">A Daily Consistency Chanting Practice</p>
                                 </div>
                                 <div className="challenge-body">
-                                    <p className="challenge-intro">
-                                        Not a competition … a collective offering through Nama. Chant together and grow a global NamaVruksha for Bhagawan Yogi Ramsuratkumar.
+                                    <p className="challenge-intro" style={{ fontStyle: 'italic' }}>
+                                        Not a competition — a collective offering through Nama. Chant together and grow a global Namavruksha for Bhagawan <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span>.
                                     </p>
                                     <div className="challenge-info-row">
                                         <div className="challenge-info-box">
@@ -105,9 +132,9 @@ const LandingPage = () => {
                                             <span className="challenge-info-val">Chant minimum <strong>1008 Namas</strong> daily.</span>
                                             <div className="chant-lines">
                                                 <div className="chant-group">
-                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
-                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
-                                                    <span className="chant-name">Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name" style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name" style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span>
+                                                    <span className="chant-name" style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span>
                                                     <span className="chant-name">Jaya Guru Raya</span>
                                                 </div>
                                                 <span className="chant-equals">= 4 Namas</span>
@@ -115,7 +142,7 @@ const LandingPage = () => {
                                         </div>
                                         <div className="challenge-info-box">
                                             <span className="challenge-info-label">Completion Blessing</span>
-                                            <span className="challenge-info-val">First 3 devotees receive the Bhagawan Yogi Ramsuratkumar Ashram Monthly Magazine <strong><em>Saranagatham</em></strong> Annual Subscription <em>(within India)</em>.</span>
+                                            <span className="challenge-info-val">First 3 devotees receive the Bhagawan <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Ashram Monthly Magazine <strong><em>Saranagatham</em></strong> Annual Subscription <em>(within India)</em>.</span>
                                         </div>
                                     </div>
                                     <div className="challenge-steps">
@@ -126,7 +153,7 @@ const LandingPage = () => {
                                         </div>
                                         <div className="challenge-step">
                                             <span className="challenge-step-num">2</span>
-                                            <span>Login → Dashboard → Invest Nama → set today as start &amp; end date → submit count</span>
+                                            <span>Login → Dashboard → Invest Nama → set today's date → submit your count</span>
                                         </div>
                                     </div>
                                     <div className="challenge-sincere">
@@ -145,7 +172,7 @@ const LandingPage = () => {
 
                     {/* Greeting centered below both frames */}
                     <div className="greeting-text-centered">
-                        🙏 Yogi Ramsuratkumar Jaya Guru Raya! 🙏
+                        🙏 <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Jaya Guru Raya! 🙏
                     </div>
                 </header>
 
