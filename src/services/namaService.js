@@ -213,7 +213,12 @@ export const deleteNamaEntry = async (id) => {
     await databases.deleteDocument(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, id);
 };
 
-export const getAccountStats = async (prefetchedEntries = null) => {
+// getAccountStats now accepts an OPTIONAL second argument: a prefetched list
+// of nama_accounts documents (e.g. from the stats_cache payload). When
+// provided, this function makes ZERO live Appwrite calls. When omitted, it
+// falls back to the original live NAMA_ACCOUNTS query, so any existing
+// caller that only passes prefetchedEntries keeps working exactly as before.
+export const getAccountStats = async (prefetchedEntries = null, prefetchedAccounts = null) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
     const dayOfWeek = now.getDay();
@@ -226,8 +231,13 @@ export const getAccountStats = async (prefetchedEntries = null) => {
     const prevYearStart = new Date(now.getFullYear() - 1, 0, 1).toISOString().split('T')[0];
     const prevYearEnd   = new Date(now.getFullYear() - 1, 11, 31).toISOString().split('T')[0];
 
-    const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true)]);
-    const accounts = accountsResponse.documents;
+    let accounts;
+    if (prefetchedAccounts) {
+        accounts = prefetchedAccounts.filter(a => a.is_active);
+    } else {
+        const accountsResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.equal('is_active', true)]);
+        accounts = accountsResponse.documents;
+    }
 
     let entries;
     if (prefetchedEntries) {
