@@ -10,11 +10,13 @@ import './PublicReportsPage.css';
 
 const COLORS = ['#FF9933', '#8B0000', '#4CAF50', '#2196F3', '#9C27B0', '#FF5722', '#00BCD4', '#E91E63'];
 const CACHE_DOC_ID = 'main';
+const LOCAL_CACHE_KEY = 'namavruksha_reports_local_cache';
 
 const PublicReportsPage = () => {
     const [loading, setLoading] = useState(true);
     const [generatedAt, setGeneratedAt] = useState(null);
     const [usingFallback, setUsingFallback] = useState(false);
+    const [isStale, setIsStale] = useState(false);
 
     const [accountStats, setAccountStats] = useState([]);
     const [recentUsers, setRecentUsers] = useState([]);
@@ -40,41 +42,62 @@ const PublicReportsPage = () => {
 
     useEffect(() => { loadAllData(); }, []);
 
+    // Build the normalized "shared" shape from a raw cache payload object
+    const normalizeParsed = (parsed) => ({
+        allEntries:   parsed.allEntries   || [],
+        entriesTotal: parsed.entriesTotal || 0,
+        allUsers:     parsed.allUsers     || [],
+        usersTotal:   parsed.usersTotal   || 0,
+        allAccounts:  parsed.allAccounts  || [],
+        allLinks:     parsed.allLinks     || [],
+        usersMap:     Object.fromEntries((parsed.allUsers || []).map(u => [u.$id, u])),
+        accountsMap:  Object.fromEntries((parsed.allAccounts || []).map(a => [a.$id, a]))
+    });
+
+    // NOTE: This function intentionally NEVER falls back to a live
+    // databases.listDocuments() query. That fallback (previously ~3,200 reads
+    // per visit) is what caused the free-tier quota to blow out repeatedly
+    // even after the 12h cache was introduced. On any cache-read failure we
+    // now degrade to the last successfully cached payload stored in the
+    // browser's localStorage, and if that's unavailable too, we show an
+    // explicit "unavailable" state rather than silently retrying live reads.
     const fetchSharedData = async () => {
         try {
             const doc = await databases.getDocument(DATABASE_ID, COLLECTIONS.STATS_CACHE, CACHE_DOC_ID);
             const parsed = JSON.parse(doc.payload);
             setGeneratedAt(parsed.generatedAt);
             setUsingFallback(false);
-            return {
-                allEntries:   parsed.allEntries   || [],
-                entriesTotal: parsed.entriesTotal || 0,
-                allUsers:     parsed.allUsers     || [],
-                usersTotal:   parsed.usersTotal   || 0,
-                allAccounts:  parsed.allAccounts  || [],
-                allLinks:     parsed.allLinks     || [],
-                usersMap:     Object.fromEntries((parsed.allUsers || []).map(u => [u.$id, u])),
-                accountsMap:  Object.fromEntries((parsed.allAccounts || []).map(a => [a.$id, a]))
-            };
+            setIsStale(false);
+
+            try {
+                localStorage.setItem(LOCAL_CACHE_KEY, JSON.stringify(parsed));
+            } catch (storageErr) {
+                // localStorage unavailable/full — non-fatal, just skip the backup write
+            }
+
+            return normalizeParsed(parsed);
         } catch (cacheErr) {
-            console.warn('Cache miss, falling back to direct fetch:', cacheErr.message);
+            console.warn('Cache read failed, trying local backup:', cacheErr.message);
+
+            try {
+                const backup = localStorage.getItem(LOCAL_CACHE_KEY);
+                if (backup) {
+                    const parsed = JSON.parse(backup);
+                    setGeneratedAt(parsed.generatedAt || null);
+                    setUsingFallback(true);
+                    setIsStale(true);
+                    return normalizeParsed(parsed);
+                }
+            } catch (backupErr) {
+                console.warn('Local backup unavailable:', backupErr.message);
+            }
+
+            // No live cache, no local backup — show an empty/unavailable state.
+            // We deliberately do NOT query Appwrite live here.
+            setGeneratedAt(null);
             setUsingFallback(true);
-            const { databases: db, Query } = await import('../appwriteClient');
-            const [entriesRes, usersRes, accountsRes] = await Promise.all([
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES,  [Query.limit(2000)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.USERS,         [Query.limit(1000)]),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ACCOUNTS, [Query.limit(100)])
-            ]);
-            return {
-                allEntries:   entriesRes.documents,
-                entriesTotal: entriesRes.total,
-                allUsers:     usersRes.documents,
-                usersTotal:   usersRes.total,
-                allAccounts:  accountsRes.documents,
-                allLinks:     [],
-                usersMap:     Object.fromEntries(usersRes.documents.map(u => [u.$id, u])),
-                accountsMap:  Object.fromEntries(accountsRes.documents.map(a => [a.$id, a]))
-            };
+            setIsStale(true);
+            return normalizeParsed({});
         }
     };
 
@@ -114,7 +137,9 @@ const PublicReportsPage = () => {
             title = year === (currentYear - 1) ? 'Previous Year' : `${year}`;
         }
         try {
-            const data = await getAccountStats(shared.allEntries);
+            // Pass shared.allAccounts so getAccountStats never issues its own
+            // live NAMA_ACCOUNTS query — everything comes from the one cache read.
+            const data = await getAccountStats(shared.allEntries, shared.allAccounts);
             const entries = shared.allEntries || [];
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entries.filter(e => e.account_id === account.id);
@@ -134,7 +159,8 @@ const PublicReportsPage = () => {
         const title = type === 'custom' ? 'Custom Period' : (year === currentYear - 1 ? 'Previous Year' : `${year}`);
         try {
             const entries = cachedShared?.allEntries || [];
-            const data = await getAccountStats(entries);
+            const accounts = cachedShared?.allAccounts || [];
+            const data = await getAccountStats(entries, accounts);
             const enhancedStats = (data || []).map(account => {
                 const accountEntries = entries.filter(e =>
                     e.account_id === account.id &&
@@ -403,11 +429,25 @@ const PublicReportsPage = () => {
                             <div style={{ fontSize: '0.75rem', marginTop: '5px', color: '#5a3800', fontWeight: '500' }}>
                                 Due to free-tier hosting limits, statistics update every 12 hours. If today's count seems low, please check back after the next refresh.
                             </div>
+                            {isStale && (
+                                <div style={{ fontSize: '0.75rem', marginTop: '6px', color: '#8B0000', fontWeight: '700' }}>
+                                    ⚠️ Live cache is temporarily unreachable — showing the last snapshot saved in your browser, not fresh data.
+                                </div>
+                            )}
                         </div>
                     )}
-                    {usingFallback && (
-                        <div style={{ fontSize: '0.8rem', color: '#8B0000', fontWeight: '700', marginTop: '6px' }}>
-                            ⚡ Live data loaded (cache temporarily unavailable)
+                    {!generatedAt && usingFallback && (
+                        <div style={{
+                            display: 'inline-block',
+                            padding: '12px 20px',
+                            background: '#fff3f3',
+                            border: '1.5px solid #8B0000',
+                            borderRadius: '8px',
+                            maxWidth: '600px'
+                        }}>
+                            <div style={{ fontSize: '0.85rem', fontWeight: '700', color: '#8B0000' }}>
+                                📊 Statistics are temporarily unavailable. Please check back shortly.
+                            </div>
                         </div>
                     )}
                 </div>
