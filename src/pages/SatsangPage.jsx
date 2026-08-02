@@ -4,6 +4,12 @@ import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import { useAuth } from '../context/AuthContext';
 import './SatsangPage.css';
 
+// Events change rarely (new/edited satsangs are an admin action, not a
+// constant stream), so a 30-minute browser cache is safe and cuts the
+// per-visit read cost to near zero on repeat traffic.
+const EVENTS_CACHE_KEY = 'namavruksha_satsang_events_cache';
+const EVENTS_CACHE_TTL_MS = 30 * 60 * 1000;
+
 // ── Display a UTC string in a given IANA timezone ─────────────────
 const showInTZ = (utcStr, ianaZone, opts = {}) => {
     const d = new Date(utcStr);
@@ -313,17 +319,55 @@ const SatsangPage = () => {
 
     useEffect(() => { loadEvents(); }, []);
 
+    const applyEvents = (evs) => {
+        setEvents(evs);
+        setCalendarMap(buildCalendarMap(evs));
+    };
+
     const loadEvents = async () => {
+        // Serve from cache if still fresh — avoids a live read on repeat visits.
+        try {
+            const cached = localStorage.getItem(EVENTS_CACHE_KEY);
+            if (cached) {
+                const { events: cachedEvents, ts } = JSON.parse(cached);
+                if (Date.now() - ts < EVENTS_CACHE_TTL_MS) {
+                    applyEvents(cachedEvents);
+                    setLoading(false);
+                    return;
+                }
+            }
+        } catch (readErr) {
+            // Corrupt/unavailable cache — fall through to a live fetch
+        }
+
         try {
             const res = await databases.listDocuments(
                 DATABASE_ID, COLLECTIONS.SATSANG_EVENTS,
                 [Query.equal('is_active', true), Query.orderAsc('event_datetime'), Query.limit(100)]
             );
             const evs = res.documents.map(d => ({ ...d, id: d.$id }));
-            setEvents(evs);
-            setCalendarMap(buildCalendarMap(evs));
-        } catch (err) { console.error(err); }
-        finally { setLoading(false); }
+            applyEvents(evs);
+            try {
+                localStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify({ events: evs, ts: Date.now() }));
+            } catch (writeErr) {
+                // localStorage unavailable/full — non-fatal
+            }
+        } catch (err) {
+            console.error(err);
+            // Live fetch failed (e.g. quota blocked) — use whatever cache we
+            // have regardless of its age, rather than showing an empty page.
+            try {
+                const cached = localStorage.getItem(EVENTS_CACHE_KEY);
+                if (cached) {
+                    const { events: cachedEvents } = JSON.parse(cached);
+                    applyEvents(cachedEvents);
+                }
+            } catch (fallbackErr) {
+                // No cache available either — events list stays empty
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleDateClick = (date) => {
