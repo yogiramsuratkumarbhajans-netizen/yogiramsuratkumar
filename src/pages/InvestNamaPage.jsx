@@ -11,6 +11,30 @@ import './InvestNamaPage.css';
 // this window reuse the cached value instead of firing a new read.
 const STATS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+// Guided chant videos — hardcoded, same pattern as the site's existing
+// CHANT_VIDEO feature. No database collection, no reads. Thumbnails are
+// pulled directly from YouTube's own CDN using the video ID.
+const CHANT_VIDEOS = [
+    {
+        id: 'v1008',
+        title: '1008 Times Chanting Powerful Mantra',
+        subtitleParts: ['Vibrant Chants · Bhagawan ', 'Yogi Ramsuratkumar'],
+        duration: '38 min',
+        count: 1008,
+        youtubeId: 'KEdWVEJwzOI',
+        url: 'https://www.youtube.com/watch?v=KEdWVEJwzOI'
+    },
+    {
+        id: 'v1200',
+        title: '1200 Nama in 50 Minutes',
+        subtitleParts: ['', 'Yogi Ramsuratkumar', ' Nama Chant with Counter'],
+        duration: '50 min',
+        count: 1200,
+        youtubeId: 'c51S9ahzVcs',
+        url: 'https://www.youtube.com/watch?v=c51S9ahzVcs'
+    }
+];
+
 const InvestNamaPage = () => {
     const { user, linkedAccounts } = useAuth();
     const { success, error } = useToast();
@@ -89,6 +113,22 @@ const InvestNamaPage = () => {
     const handleQuickAdd = (accountId, amount) => {
         setCounts(prev => ({ ...prev, [accountId]: (prev[accountId] || 0) + amount }));
         setMinutes(prev => ({ ...prev, [accountId]: '' }));
+    };
+
+    // Applies a chant-along video's count to every linked account at once —
+    // devotees chanting along with a video are usually offering it across
+    // all their Sankalpas, not picking one.
+    const handleChantAlongQuickAdd = (amount) => {
+        setCounts(prev => {
+            const updated = { ...prev };
+            linkedAccounts.forEach(acc => { updated[acc.id] = (updated[acc.id] || 0) + amount; });
+            return updated;
+        });
+        setMinutes(prev => {
+            const updated = { ...prev };
+            linkedAccounts.forEach(acc => { updated[acc.id] = ''; });
+            return updated;
+        });
     };
 
     const getRawTotal   = () => Object.values(counts).reduce((sum, c) => sum + (c || 0), 0);
@@ -231,6 +271,56 @@ const InvestNamaPage = () => {
                         </div>
                     </div>
 
+                    {linkedAccounts.length > 0 && (
+                        <div className="chant-along-section" style={{ marginBottom: '2rem' }}>
+                            <h3 className="section-title">🎧 Chant Along</h3>
+                            <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '12px' }}>
+                                Follow one of these guided chants, then log your count below.
+                            </p>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                {CHANT_VIDEOS.map(video => (
+                                    <div key={video.id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
+                                        <a href={video.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', position: 'relative' }}>
+                                            <img
+                                                src={`https://img.youtube.com/vi/${video.youtubeId}/mqdefault.jpg`}
+                                                alt={video.title}
+                                                style={{ width: '100%', display: 'block', aspectRatio: '16 / 9', objectFit: 'cover' }}
+                                            />
+                                            <span style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.75)', color: 'white', fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px' }}>
+                                                {video.duration}
+                                            </span>
+                                        </a>
+                                        <div style={{ padding: '10px 12px' }}>
+                                            <p style={{ fontSize: '0.85rem', fontWeight: '600', margin: '0 0 4px', lineHeight: '1.4' }}>{video.title}</p>
+                                            <p style={{ fontSize: '0.75rem', color: '#888', margin: '0 0 8px' }}>
+                                                {video.subtitleParts[0]}
+                                                <span style={{ whiteSpace: 'nowrap' }}>{video.subtitleParts[1]}</span>
+                                                {video.subtitleParts[2]}
+                                            </p>
+                                            <div style={{ display: 'flex', gap: '6px' }}>
+                                                <a
+                                                    href={video.url}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    style={{ flex: 1, textAlign: 'center', fontSize: '0.75rem', border: '1px solid #ddd', borderRadius: '6px', padding: '6px', color: '#FF9933', textDecoration: 'none', fontWeight: '600' }}
+                                                >
+                                                    Watch ↗
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleChantAlongQuickAdd(video.count)}
+                                                    style={{ flex: 1, fontSize: '0.75rem', border: 'none', borderRadius: '6px', padding: '6px', background: '#FF9933', color: 'white', fontWeight: '600', cursor: 'pointer' }}
+                                                >
+                                                    +{video.count} Quick Add
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {linkedAccounts.length === 0 ? (
                         <div className="empty-state">
                             <div className="empty-state-icon">
@@ -246,6 +336,9 @@ const InvestNamaPage = () => {
 
                             {/* ── OFFERING DATE — single field, default today ── */}
                             <div className="date-selection-section">
+                                <div style={{ background: '#fff8e1', border: '1px solid #FF9933', borderRadius: '8px', padding: '10px 14px', marginBottom: '1rem', fontSize: '0.82rem', color: '#5a3800', lineHeight: '1.6' }}>
+                                    🙏 Log your Nama once a day, ideally after your chanting is done for the day. No need to keep checking back — your numbers refresh automatically every few minutes.
+                                </div>
                                 <h3 className="section-title">Offering Date</h3>
                                 <div className="form-group" style={{ maxWidth: '220px' }}>
                                     <label htmlFor="entryDate">
