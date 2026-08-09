@@ -54,6 +54,17 @@ const InvestNamaPage = () => {
     const [devoteeCount, setDevoteeCount] = useState('');
     const [showNamaInfoFor, setShowNamaInfoFor] = useState(null);
 
+    // Which single Sankalpa a Chant Along quick-add applies to. Defaulted to
+    // the first linked account once accounts load, and changeable via a
+    // dropdown — never applied to every linked account automatically.
+    const [chantTargetAccount, setChantTargetAccount] = useState('');
+
+    useEffect(() => {
+        if (linkedAccounts.length > 0 && !chantTargetAccount) {
+            setChantTargetAccount(linkedAccounts[0].id);
+        }
+    }, [linkedAccounts, chantTargetAccount]);
+
     useEffect(() => {
         if (!user) { navigate('/login'); return; }
         const initialCounts = {};
@@ -115,20 +126,15 @@ const InvestNamaPage = () => {
         setMinutes(prev => ({ ...prev, [accountId]: '' }));
     };
 
-    // Applies a chant-along video's count to every linked account at once —
-    // devotees chanting along with a video are usually offering it across
-    // all their Sankalpas, not picking one.
+    // Applies a chant-along video's count to ONLY the selected Sankalpa —
+    // reuses the same single-account handleQuickAdd already used by the
+    // +108/+54/+27 buttons, so behavior is identical and predictable.
     const handleChantAlongQuickAdd = (amount) => {
-        setCounts(prev => {
-            const updated = { ...prev };
-            linkedAccounts.forEach(acc => { updated[acc.id] = (updated[acc.id] || 0) + amount; });
-            return updated;
-        });
-        setMinutes(prev => {
-            const updated = { ...prev };
-            linkedAccounts.forEach(acc => { updated[acc.id] = ''; });
-            return updated;
-        });
+        if (!chantTargetAccount) {
+            error('Please select a Sankalpa first.');
+            return;
+        }
+        handleQuickAdd(chantTargetAccount, amount);
     };
 
     const getRawTotal   = () => Object.values(counts).reduce((sum, c) => sum + (c || 0), 0);
@@ -277,6 +283,21 @@ const InvestNamaPage = () => {
                             <p style={{ fontSize: '0.85rem', color: '#666', marginBottom: '12px' }}>
                                 Follow one of these guided chants, then log your count below.
                             </p>
+                            <div style={{ marginBottom: '14px' }}>
+                                <label style={{ fontSize: '0.8rem', color: '#666', display: 'block', marginBottom: '4px' }}>
+                                    Quick Add applies to:
+                                </label>
+                                <select
+                                    value={chantTargetAccount}
+                                    onChange={(e) => setChantTargetAccount(e.target.value)}
+                                    className="form-input"
+                                    style={{ maxWidth: '280px' }}
+                                >
+                                    {linkedAccounts.map(acc => (
+                                        <option key={acc.id} value={acc.id}>{acc.name}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                                 {CHANT_VIDEOS.map(video => (
                                     <div key={video.id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
@@ -309,11 +330,17 @@ const InvestNamaPage = () => {
                                                 <button
                                                     type="button"
                                                     onClick={() => handleChantAlongQuickAdd(video.count)}
-                                                    style={{ flex: 1, fontSize: '0.75rem', border: 'none', borderRadius: '6px', padding: '6px', background: '#FF9933', color: 'white', fontWeight: '600', cursor: 'pointer' }}
+                                                    disabled={!chantTargetAccount}
+                                                    style={{ flex: 1, fontSize: '0.75rem', border: 'none', borderRadius: '6px', padding: '6px', background: chantTargetAccount ? '#FF9933' : '#ccc', color: 'white', fontWeight: '600', cursor: chantTargetAccount ? 'pointer' : 'not-allowed' }}
                                                 >
-                                                    +{video.count} Quick Add
+                                                    +{video.count}
                                                 </button>
                                             </div>
+                                            {chantTargetAccount && (
+                                                <p style={{ fontSize: '0.68rem', color: '#aaa', margin: '6px 0 0', textAlign: 'center' }}>
+                                                    Adds to: {linkedAccounts.find(a => a.id === chantTargetAccount)?.name}
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
