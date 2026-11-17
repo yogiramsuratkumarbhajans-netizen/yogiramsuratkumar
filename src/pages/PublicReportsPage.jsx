@@ -12,6 +12,35 @@ const COLORS = ['#FF9933', '#8B0000', '#4CAF50', '#2196F3', '#9C27B0', '#FF5722'
 const CACHE_DOC_ID = 'main';
 const LOCAL_CACHE_KEY = 'namavruksha_reports_local_cache';
 
+// Recently Joined Devotees: hide devotees who still have 0 Namas this many days after joining
+const HIDE_ZERO_NAMA_AFTER_DAYS = 14;
+
+// Calendar-day key in IST (YYYY-MM-DD) for a timestamp
+const getISTDateKey = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date(d));
+
+// Whole calendar days between two IST dates
+const istDaysBetween = (from, to) => {
+    const a = getISTDateKey(from).split('-').map(Number);
+    const b = getISTDateKey(to).split('-').map(Number);
+    return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86400000);
+};
+
+// Timestamp (e.g. created_at) -> "17 Nov 2026" in IST; empty string if missing/invalid
+const formatISTDate = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });
+};
+
+// Date-only string (entry_date, "YYYY-MM-DD") -> "17 Nov 2026" without timezone shift
+const formatDateOnly = (str) => {
+    if (!str) return '';
+    const d = new Date(String(str).slice(0, 10) + 'T00:00:00Z');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+};
+
 const PublicReportsPage = () => {
     const [loading, setLoading] = useState(true);
     const [generatedAt, setGeneratedAt] = useState(null);
@@ -176,19 +205,31 @@ const PublicReportsPage = () => {
 
     const loadRecentUsers = async (shared) => {
         try {
+            const allLinks = shared.allLinks || [];
+            const now = new Date();
+
+            // Total Namas per user in one pass over the cached entries
+            const totalsByUser = {};
+            shared.allEntries.forEach(e => {
+                totalsByUser[e.user_id] = (totalsByUser[e.user_id] || 0) + (e.count || 0);
+            });
+
             const recentUserDocs = [...shared.allUsers]
                 .filter(u => u.is_active)
                 .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                .filter(u => {
+                    // Keep anyone who has chanted; hide 0-Nama devotees once 14 days have passed since joining
+                    if ((totalsByUser[u.$id] || 0) > 0) return true;
+                    if (!u.created_at || isNaN(new Date(u.created_at).getTime())) return false;
+                    return istDaysBetween(u.created_at, now) <= HIDE_ZERO_NAMA_AFTER_DAYS;
+                })
                 .slice(0, 8);
-
-            const allLinks = shared.allLinks || [];
 
             const enrichedUsers = recentUserDocs.map(user => {
                 const userLinks    = allLinks.filter(l => l.user_id === user.$id);
                 const accountIds   = userLinks.map(l => l.account_id);
                 const accounts     = shared.allAccounts.filter(a => accountIds.includes(a.$id)).map(a => a.name);
-                const userEntries  = shared.allEntries.filter(e => e.user_id === user.$id);
-                const totalCount   = userEntries.reduce((sum, e) => sum + (e.count || 0), 0);
+                const totalCount   = totalsByUser[user.$id] || 0;
                 return { ...user, id: user.$id, accounts, totalCount };
             });
             setRecentUsers(enrichedUsers);
@@ -496,6 +537,9 @@ const PublicReportsPage = () => {
                                                 {user.city}
                                             </p>
                                         )}
+                                        {formatISTDate(user.created_at) && (
+                                            <p style={{ fontSize: '0.75rem', color: '#999', margin: '2px 0 6px' }}>Joined {formatISTDate(user.created_at)}</p>
+                                        )}
                                         <div className="user-accounts">
                                             {user.accounts?.slice(0, 2).map((acc, i) => <span key={i} className="mini-tag">{acc}</span>)}
                                         </div>
@@ -647,11 +691,17 @@ const PublicReportsPage = () => {
                         <div className="table-container">
                             <table className="table">
                                 <thead>
-                                    <tr><th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period</th><th>Type</th></tr>
+                                    <tr><th>Date</th><th>Devotee</th><th>Sankalpa</th><th>Count</th><th>Period</th><th>Type</th></tr>
                                 </thead>
                                 <tbody>
                                     {recentEntries.map(entry => (
                                         <tr key={entry.id}>
+                                            <td style={{ whiteSpace: 'nowrap' }}>
+                                                {formatDateOnly(entry.entry_date) || '-'}
+                                                {formatISTDate(entry.created_at) && getISTDateKey(entry.created_at) !== String(entry.entry_date || '').slice(0, 10) && (
+                                                    <div style={{ fontSize: '0.7rem', color: '#999' }}>logged {formatISTDate(entry.created_at)}</div>
+                                                )}
+                                            </td>
                                             <td>{entry.users?.name || '-'}</td>
                                             <td><strong>{entry.nama_accounts?.name || '-'}</strong></td>
                                             <td className="highlight-cell">{formatNumber(entry.count)}</td>
