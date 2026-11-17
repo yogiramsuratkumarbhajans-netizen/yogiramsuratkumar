@@ -142,7 +142,7 @@ const LandingPage = () => {
                                         </div>
                                         <div className="challenge-info-box">
                                             <span className="challenge-info-label">Completion Blessing</span>
-                                            <span className="challenge-info-val">First 3 devotees receive the Bhagawan <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Ashram Monthly Magazine <strong><em>Saranagatham</em></strong> Annual Subscription <em>(within India)</em>.</span>
+                                            <span className="challenge-info-val">Devotees who log their Nama daily for <strong>30 days</strong> may choose one reward: a Bhagawan Nama Notebook, a Bhagawan printed T-shirt, or a Bhagawan wooden photo cutout.</span>
                                         </div>
                                     </div>
                                     <div className="challenge-steps">
