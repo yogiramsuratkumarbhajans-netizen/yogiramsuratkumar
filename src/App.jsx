@@ -28,12 +28,6 @@ import AdminDashboardPage from './pages/AdminDashboardPage';
 import ModeratorLoginPage from './pages/ModeratorLoginPage';
 import ModeratorDashboardPage from './pages/ModeratorDashboardPage';
 import PrayerPage from './pages/PrayerPage';
-import BookshelfPage from './pages/BookshelfPage';
-import BookReaderPage from './pages/BookReaderPage';
-import PhotoGalleryPage from './pages/PhotoGalleryPage';
-import AudioGalleryPage from './pages/AudioGalleryPage';
-import SatsangPage from './pages/SatsangPage';           // ← NEW
-import SatsangSubmitPage from './pages/SatsangSubmitPage'; // ← NEW
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -97,12 +91,6 @@ function AppRoutes() {
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/reports/public" element={<PublicReportsPage />} />
       <Route path="/prayers" element={<PrayerPage />} />
-      <Route path="/books" element={<BookshelfPage />} />
-      <Route path="/books/:id" element={<BookReaderPage />} />
-      <Route path="/gallery" element={<PhotoGalleryPage />} />
-      <Route path="/audios" element={<AudioGalleryPage />} />
-      <Route path="/satsang" element={<SatsangPage />} />           {/* ← NEW */}
-      <Route path="/satsang/submit" element={<SatsangSubmitPage />} /> {/* ← NEW */}
 
       {/* Protected User Routes */}
       <Route path="/dashboard" element={

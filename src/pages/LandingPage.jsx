@@ -260,10 +260,6 @@ const LandingPage = () => {
 
                 {/* Media Links */}
                 <section className="media-compact">
-                    <Link to="/satsang" className="media-link" style={{ background: 'linear-gradient(135deg, #7a1a1a, #a52a2a)', color: 'white', border: 'none' }}>🕉 Global Satsang</Link>
-                    <Link to="/gallery" className="media-link">📷 Gallery</Link>
-                    <Link to="/audios" className="media-link">🎵 Audio</Link>
-                    <Link to="/books" className="media-link">📚 Library</Link>
                     <Link to="/prayers" className="media-link">🙏 Prayers</Link>
                 </section>
 
