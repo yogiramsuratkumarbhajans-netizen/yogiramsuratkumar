@@ -15,11 +15,12 @@ const STATS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 //  - Yogi Ramsuratkumar Nama (default for every other Sankalpa): 20 Namas per minute
 //  - Om Sri Ram Jai Ram Jai Jai Ram: 5 Namas per minute
 //  - Mahamantra Hare Rama...: 3 Namas per minute
-//  - Sankalpam for All Prayer Requests: no automation, count is typed manually
+//  - Sankalpam for All Prayer Requests and Individual Contribution (any Nama):
+//    the devotee enters their own Namas-per-minute, then minutes auto-fill the count
 // The Nama Count box stays editable for every Sankalpa; minutes only pre-fills it.
 const getNamaRule = (name = '') => {
     const n = String(name).toLowerCase();
-    if (n.includes('prayer request')) return { perMinute: 0, mantra: null };
+    if (n.includes('prayer request') || n.includes('individual contribution')) return { perMinute: 0, mantra: null, custom: true };
     if (n.includes('om sri ram')) return { perMinute: 5, mantra: 'Om Sri Ram Jai Ram Jai Jai Ram' };
     if (n.includes('mahamantra') || n.includes('hare rama')) return { perMinute: 3, mantra: 'Hare Rama Hare Krishna Mahamantra' };
     return { perMinute: 20, mantra: null };
@@ -56,6 +57,7 @@ const InvestNamaPage = () => {
 
     const [counts, setCounts] = useState({});
     const [minutes, setMinutes] = useState({});
+    const [customRates, setCustomRates] = useState({}); // Namas per minute, for 'any Nama' Sankalpas
     const [loading, setLoading] = useState(false);
     const [todayStats, setTodayStats] = useState({ today: 0, totalDevotees: 0 });
 
@@ -133,8 +135,17 @@ const InvestNamaPage = () => {
         setMinutes(prev => ({ ...prev, [accountId]: value }));
         const mins = parseFloat(value) || 0;
         const acc = linkedAccounts.find(a => a.id === accountId);
-        const { perMinute } = getNamaRule(acc?.name);
+        const rule = getNamaRule(acc?.name);
+        const perMinute = rule.custom ? (parseFloat(customRates[accountId]) || 0) : rule.perMinute;
         setCounts(prev => ({ ...prev, [accountId]: Math.round(mins * perMinute) }));
+    };
+
+    const handleCustomRateChange = (accountId, value) => {
+        setCustomRates(prev => ({ ...prev, [accountId]: value }));
+        const mins = parseFloat(minutes[accountId]) || 0;
+        if (mins > 0) {
+            setCounts(prev => ({ ...prev, [accountId]: Math.round(mins * (parseFloat(value) || 0)) }));
+        }
     };
 
     const handleQuickAdd = (accountId, amount) => {
@@ -466,12 +477,12 @@ const InvestNamaPage = () => {
                                                         min="0" placeholder="0"
                                                     />
                                                 </div>
-                                                {rule.perMinute > 0 && (<>
+                                                {(rule.perMinute > 0 || rule.custom) && (<>
                                                 <div className="input-divider" style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem', color: '#999' }}>OR</div>
                                                 <div className="input-group" style={{ flex: 1, position: 'relative' }}>
                                                     <label style={{ fontSize: '0.8rem', color: '#666', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                         Minutes (Approx)
-                                                        <span
+                                                        {!rule.custom && <span
                                                             className="info-icon"
                                                             style={{ cursor: 'pointer', fontSize: '1rem', color: '#FF9933', position: 'relative', fontWeight: 'bold' }}
                                                             onMouseEnter={() => setShowNamaInfoFor(account.id)}
@@ -497,7 +508,7 @@ const InvestNamaPage = () => {
                                                                     <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid #2d3748' }}/>
                                                                 </div>
                                                             )}
-                                                        </span>
+                                                        </span>}
                                                     </label>
                                                     <input
                                                         type="number"
@@ -509,9 +520,21 @@ const InvestNamaPage = () => {
                                                 </div>
                                                 </>)}
                                             </div>
+                                            {rule.custom && (
+                                                <div className="input-group" style={{ marginTop: '0.75rem' }}>
+                                                    <label style={{ fontSize: '0.8rem', color: '#666', marginBottom: '4px', display: 'block' }}>Namas per minute (your pace)</label>
+                                                    <input
+                                                        type="number"
+                                                        value={customRates[account.id] || ''}
+                                                        onChange={(e) => handleCustomRateChange(account.id, e.target.value)}
+                                                        className="form-input count-input"
+                                                        min="0" placeholder="e.g. 100"
+                                                    />
+                                                </div>
+                                            )}
                                             <p style={{ fontSize: '0.75rem', color: '#8a6d3b', margin: '6px 0 0' }}>
-                                                {rule.perMinute === 0
-                                                    ? <>Enter your Nama count. There is no automatic calculation for this Sankalpa.</>
+                                                {rule.custom
+                                                    ? <>This Sankalpa can be for any Nama. Enter how many Namas you chant in 1 minute, then enter your Minutes and the Nama Count fills automatically. You can also type the Nama Count directly.</>
                                                     : rule.mantra
                                                         ? <>Auto-count here is for {rule.mantra} (1 minute = {rule.perMinute} Namas). You can edit the Nama Count to your actual number.</>
                                                         : <>Minutes auto-fill assumes <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Nama (20 per minute). You can edit the Nama Count to your actual number.</>}
