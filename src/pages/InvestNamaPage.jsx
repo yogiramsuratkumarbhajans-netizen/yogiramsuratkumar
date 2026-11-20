@@ -11,6 +11,20 @@ import './InvestNamaPage.css';
 // this window reuse the cached value instead of firing a new read.
 const STATS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+// Minutes -> Nama auto-count rules, matched on the Sankalpa name.
+//  - Yogi Ramsuratkumar Nama (default for every other Sankalpa): 20 Namas per minute
+//  - Om Sri Ram Jai Ram Jai Jai Ram: 5 Namas per minute
+//  - Mahamantra Hare Rama...: 3 Namas per minute
+//  - Sankalpam for All Prayer Requests: no automation, count is typed manually
+// The Nama Count box stays editable for every Sankalpa; minutes only pre-fills it.
+const getNamaRule = (name = '') => {
+    const n = String(name).toLowerCase();
+    if (n.includes('prayer request')) return { perMinute: 0, mantra: null };
+    if (n.includes('om sri ram')) return { perMinute: 5, mantra: 'Om Sri Ram Jai Ram Jai Jai Ram' };
+    if (n.includes('mahamantra') || n.includes('hare rama')) return { perMinute: 3, mantra: 'Hare Rama Hare Krishna Mahamantra' };
+    return { perMinute: 20, mantra: null };
+};
+
 // Guided chant videos — hardcoded, same pattern as the site's existing
 // CHANT_VIDEO feature. No database collection, no reads. Thumbnails are
 // pulled directly from YouTube's own CDN using the video ID.
@@ -118,7 +132,9 @@ const InvestNamaPage = () => {
     const handleMinutesChange = (accountId, value) => {
         setMinutes(prev => ({ ...prev, [accountId]: value }));
         const mins = parseFloat(value) || 0;
-        setCounts(prev => ({ ...prev, [accountId]: Math.round(mins * 20) }));
+        const acc = linkedAccounts.find(a => a.id === accountId);
+        const { perMinute } = getNamaRule(acc?.name);
+        setCounts(prev => ({ ...prev, [accountId]: Math.round(mins * perMinute) }));
     };
 
     const handleQuickAdd = (accountId, amount) => {
@@ -421,7 +437,9 @@ const InvestNamaPage = () => {
 
                             {/* ── SANKALPA ENTRIES ── */}
                             <div className="accounts-form">
-                                {linkedAccounts.map(account => (
+                                {linkedAccounts.map(account => {
+                                    const rule = getNamaRule(account.name);
+                                    return (
                                     <div key={account.id} className="account-entry">
                                         <div className="account-info">
                                             <span className="account-name">{account.name}</span>
@@ -448,6 +466,7 @@ const InvestNamaPage = () => {
                                                         min="0" placeholder="0"
                                                     />
                                                 </div>
+                                                {rule.perMinute > 0 && (<>
                                                 <div className="input-divider" style={{ display: 'flex', alignItems: 'center', paddingTop: '1.5rem', color: '#999' }}>OR</div>
                                                 <div className="input-group" style={{ flex: 1, position: 'relative' }}>
                                                     <label style={{ fontSize: '0.8rem', color: '#666', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -463,7 +482,8 @@ const InvestNamaPage = () => {
                                                             {showNamaInfoFor === account.id && (
                                                                 <div className="nama-info-tooltip" style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', marginTop: '8px', backgroundColor: '#2d3748', color: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '0.8rem', lineHeight: '1.5', width: '280px', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.25)', textAlign: 'left' }} onClick={(e) => e.stopPropagation()}>
                                                                     <strong style={{ color: '#FF9933', display: 'block', marginBottom: '8px' }}>ⓘ Nama Calculation Info</strong>
-                                                                    <div style={{ marginBottom: '8px' }}><strong>1 minute = 20 Namas</strong><br/><span style={{ opacity: 0.8 }}>12 seconds = 4 Namas</span></div>
+                                                                    <div style={{ marginBottom: '8px' }}><strong>1 minute = {rule.perMinute} Namas</strong><br/><span style={{ opacity: 0.8 }}>{rule.mantra ? <>For {rule.mantra}. Edit the Nama Count if your pace differs.</> : '12 seconds = 4 Namas'}</span></div>
+                                                                    {!rule.mantra && (
                                                                     <div style={{ borderTop: '1px solid rgba(255,255,255,0.2)', paddingTop: '8px', marginTop: '8px' }}>
                                                                         <strong style={{ color: '#FFD700' }}>Why?</strong><br/>
                                                                         <span style={{ opacity: 0.9 }}>Chanting:</span>
@@ -473,6 +493,7 @@ const InvestNamaPage = () => {
                                                                         <span style={{ opacity: 0.9 }}>is counted as <strong>4 Namas</strong>, which takes ~12 seconds.</span><br/>
                                                                         <span style={{ opacity: 0.9 }}>So, <strong>1 minute ≈ 5 × 4 = 20 Namas</strong></span>
                                                                     </div>
+                                                                    )}
                                                                     <div style={{ position: 'absolute', top: '-6px', left: '50%', transform: 'translateX(-50%)', width: 0, height: 0, borderLeft: '6px solid transparent', borderRight: '6px solid transparent', borderBottom: '6px solid #2d3748' }}/>
                                                                 </div>
                                                             )}
@@ -486,10 +507,19 @@ const InvestNamaPage = () => {
                                                         min="0" placeholder="0 min" step="0.5"
                                                     />
                                                 </div>
+                                                </>)}
                                             </div>
+                                            <p style={{ fontSize: '0.75rem', color: '#8a6d3b', margin: '6px 0 0' }}>
+                                                {rule.perMinute === 0
+                                                    ? <>Enter your Nama count. There is no automatic calculation for this Sankalpa.</>
+                                                    : rule.mantra
+                                                        ? <>Auto-count here is for {rule.mantra} (1 minute = {rule.perMinute} Namas). You can edit the Nama Count to your actual number.</>
+                                                        : <>Minutes auto-fill assumes <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Nama (20 per minute). You can edit the Nama Count to your actual number.</>}
+                                            </p>
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
 
                             {/* Session Total */}
