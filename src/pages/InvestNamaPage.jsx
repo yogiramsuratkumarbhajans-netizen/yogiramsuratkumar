@@ -466,6 +466,7 @@ const InvestNamaPage = () => {
                                                 <button type="button" className="quick-btn" onClick={() => handleQuickAdd(account.id, 54)}>+54</button>
                                                 <button type="button" className="quick-btn" onClick={() => handleQuickAdd(account.id, 27)}>+27</button>
                                             </div>
+                                            <div className="inputs-col" style={{ flex: 1, minWidth: 0 }}>
                                             <div className="inputs-row" style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
                                                 <div className="input-group" style={{ flex: 1 }}>
                                                     <label style={{ fontSize: '0.8rem', color: '#666', marginBottom: '4px', display: 'block' }}>Nama Count</label>
@@ -532,13 +533,14 @@ const InvestNamaPage = () => {
                                                     />
                                                 </div>
                                             )}
-                                            <p style={{ fontSize: '0.75rem', color: '#8a6d3b', margin: '6px 0 0' }}>
+                                            <p style={{ fontSize: '0.75rem', color: '#8a6d3b', margin: '6px 0 0', lineHeight: 1.4 }}>
                                                 {rule.custom
-                                                    ? <>This Sankalpa can be for any Nama. Enter how many Namas you chant in 1 minute, then enter your Minutes and the Nama Count fills automatically. You can also type the Nama Count directly.</>
+                                                    ? <>Any Nama: enter your Namas per minute, then Minutes. Count fills automatically; you can edit it.</>
                                                     : rule.mantra
-                                                        ? <>Auto-count here is for {rule.mantra} (1 minute = {rule.perMinute} Namas). You can edit the Nama Count to your actual number.</>
-                                                        : <>Minutes auto-fill assumes <span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Nama (20 per minute). You can edit the Nama Count to your actual number.</>}
+                                                        ? <>1 minute = {rule.perMinute} Namas for this mantra. You can edit the count.</>
+                                                        : <>Auto-fill: 20 Namas/min (<span style={{ whiteSpace: 'nowrap' }}>Yogi Ramsuratkumar</span> Nama). You can edit the count.</>}
                                             </p>
+                                            </div>
                                         </div>
                                     </div>
                                     );
