@@ -47,6 +47,18 @@ const CHANT_VIDEOS = [
         count: 1200,
         youtubeId: 'c51S9ahzVcs',
         url: 'https://www.youtube.com/watch?v=c51S9ahzVcs'
+    },
+    {
+        id: 'v108ram',
+        title: '108 Ram Nam in 22 Minutes',
+        subtitleParts: ['Om Sri Ram Jai Ram Jai Jai Ram Chant', '', ''],
+        duration: '22 min',
+        count: 108,
+        youtubeId: 'xa3EwxGX6g8',
+        url: 'https://www.youtube.com/watch?v=xa3EwxGX6g8',
+        // Quick-add always goes to the Sankalpa whose name contains this text
+        // (ignores the "Quick Add applies to" dropdown).
+        onlyFor: 'om sri ram'
     }
 ];
 
@@ -156,12 +168,17 @@ const InvestNamaPage = () => {
     // Applies a chant-along video's count to ONLY the selected Sankalpa —
     // reuses the same single-account handleQuickAdd already used by the
     // +108/+54/+27 buttons, so behavior is identical and predictable.
-    const handleChantAlongQuickAdd = (amount) => {
-        if (!chantTargetAccount) {
-            error('Please select a Sankalpa first.');
+    const getVideoTarget = (video) => video.onlyFor
+        ? linkedAccounts.find(a => String(a.name).toLowerCase().includes(video.onlyFor))
+        : linkedAccounts.find(a => a.id === chantTargetAccount);
+
+    const handleChantAlongQuickAdd = (video) => {
+        const target = getVideoTarget(video);
+        if (!target) {
+            error(video.onlyFor ? 'This chant is only for the Om Sri Ram Jai Ram Jai Jai Ram Sankalpa, which is not linked to your account.' : 'Please select a Sankalpa first.');
             return;
         }
-        handleQuickAdd(chantTargetAccount, amount);
+        handleQuickAdd(target.id, video.count);
     };
 
     const getRawTotal   = () => Object.values(counts).reduce((sum, c) => sum + (c || 0), 0);
@@ -326,7 +343,9 @@ const InvestNamaPage = () => {
                                 </select>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                                {CHANT_VIDEOS.map(video => (
+                                {CHANT_VIDEOS.map(video => {
+                                    const target = getVideoTarget(video);
+                                    return (
                                     <div key={video.id} style={{ border: '1px solid #eee', borderRadius: '12px', overflow: 'hidden', background: '#fff' }}>
                                         <a href={video.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', position: 'relative' }}>
                                             <img
@@ -356,21 +375,26 @@ const InvestNamaPage = () => {
                                                 </a>
                                                 <button
                                                     type="button"
-                                                    onClick={() => handleChantAlongQuickAdd(video.count)}
-                                                    disabled={!chantTargetAccount}
-                                                    style={{ flex: 1, fontSize: '0.75rem', border: 'none', borderRadius: '6px', padding: '6px', background: chantTargetAccount ? '#FF9933' : '#ccc', color: 'white', fontWeight: '600', cursor: chantTargetAccount ? 'pointer' : 'not-allowed' }}
+                                                    onClick={() => handleChantAlongQuickAdd(video)}
+                                                    disabled={!target}
+                                                    style={{ flex: 1, fontSize: '0.75rem', border: 'none', borderRadius: '6px', padding: '6px', background: target ? '#FF9933' : '#ccc', color: 'white', fontWeight: '600', cursor: target ? 'pointer' : 'not-allowed' }}
                                                 >
                                                     +{video.count}
                                                 </button>
                                             </div>
-                                            {chantTargetAccount && (
+                                            {target ? (
                                                 <p style={{ fontSize: '0.68rem', color: '#aaa', margin: '6px 0 0', textAlign: 'center' }}>
-                                                    Adds to: {linkedAccounts.find(a => a.id === chantTargetAccount)?.name}
+                                                    Adds to: {target.name}
+                                                </p>
+                                            ) : video.onlyFor && (
+                                                <p style={{ fontSize: '0.68rem', color: '#aaa', margin: '6px 0 0', textAlign: 'center' }}>
+                                                    Only for the Om Sri Ram Jai Ram Jai Jai Ram Sankalpa
                                                 </p>
                                             )}
                                         </div>
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </div>
                     )}
