@@ -298,7 +298,7 @@ const InvestNamaPage = () => {
                     <div className="stats-grid">
                         <div className="devotees-summary">
                             <div className="summary-content">
-                                <span className="summary-label">Total Devotees</span>
+                                <span className="summary-label">Your Devotee Participations</span>
                                 <span className="summary-value">{todayStats.totalDevotees?.toLocaleString() || '0'}</span>
                             </div>
                             <div className="summary-icon">

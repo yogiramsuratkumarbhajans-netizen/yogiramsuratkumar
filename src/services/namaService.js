@@ -135,7 +135,8 @@ export const getUserStats = async (userId) => {
 
     entries.forEach(entry => {
         const count = entry.count || 0;
-        const devoteeCount = entry.devotee_count || 0;
+        // A blank group size means a solo entry = 1 participation (same rule as the reports and home pages)
+        const devoteeCount = parseInt(entry.devotee_count) || 1;
         stats.overall += count;
         stats.totalDevotees += devoteeCount;
         if (entry.entry_date === today)         stats.today += count;
@@ -218,6 +219,24 @@ export const deleteNamaEntry = async (id) => {
 // provided, this function makes ZERO live Appwrite calls. When omitted, it
 // falls back to the original live NAMA_ACCOUNTS query, so any existing
 // caller that only passes prefetchedEntries keeps working exactly as before.
+// Reads EVERY nama entry by paging with a cursor. A single listDocuments call with
+// Query.limit(2000) returns only the oldest 2000 entries (default order), which silently
+// drops all newer entries once the table grows past 2000.
+export const fetchAllNamaEntries = async (pageSize = 1000) => {
+    const all = [];
+    let cursor = null;
+    for (;;) {
+        const queries = [Query.limit(pageSize)];
+        if (cursor) queries.push(Query.cursorAfter(cursor));
+        const res = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, queries);
+        const docs = res.documents || [];
+        all.push(...docs);
+        if (docs.length < pageSize) break;
+        cursor = docs[docs.length - 1].$id;
+    }
+    return all;
+};
+
 export const getAccountStats = async (prefetchedEntries = null, prefetchedAccounts = null) => {
     const now = new Date();
     const today = now.toISOString().split('T')[0];
@@ -243,8 +262,7 @@ export const getAccountStats = async (prefetchedEntries = null, prefetchedAccoun
     if (prefetchedEntries) {
         entries = prefetchedEntries;
     } else {
-        const entriesResponse = await databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)]);
-        entries = entriesResponse.documents;
+        entries = await fetchAllNamaEntries();
     }
 
     return accounts.map(account => {

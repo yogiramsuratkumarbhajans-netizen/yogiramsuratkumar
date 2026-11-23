@@ -19,14 +19,15 @@ import {
     getAllPrayers,
     requestAccountDeletion,
     requestUserDeletion,
-    getAccountStats
+    getAccountStats,
+    fetchAllNamaEntries
 } from '../services/namaService';
 import { databases, Query, DATABASE_ID, COLLECTIONS } from '../appwriteClient';
 import ExcelUpload from '../components/ExcelUpload';
 import BookUpload from '../components/BookUpload';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, AreaChart, Area,
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import * as XLSX from 'xlsx';
 import './ModeratorDashboardPage.css';
@@ -86,14 +87,15 @@ const ModeratorDashboardPage = () => {
     // ── OPTIMIZED: fetch nama_entries once, share with all chart functions ──
     const loadData = async () => {
         try {
-            const [accountsData, usersData, prayersData, booksData, statsData, entriesRes] = await Promise.all([
+            // Entries are read ONCE (all pages) and shared with the stats table and every chart.
+            const [accountsData, usersData, prayersData, booksData, allEntries] = await Promise.all([
                 getAllNamaAccounts(),
                 getAllUsers(),
                 getAllPrayers(),
                 getBooks(),
-                getAccountStats(),
-                databases.listDocuments(DATABASE_ID, COLLECTIONS.NAMA_ENTRIES, [Query.limit(2000)])
+                fetchAllNamaEntries()
             ]);
+            const statsData = await getAccountStats(allEntries, accountsData);
 
             setAccounts(accountsData);
             setUsers(usersData);
@@ -102,7 +104,7 @@ const ModeratorDashboardPage = () => {
             setAccountStats(statsData);
 
             // Pass shared entries to all chart functions — zero extra fetches
-            loadReportStats(entriesRes.documents, usersData);
+            loadReportStats(allEntries, usersData, accountsData);
         } catch (err) {
             console.error('Error loading data:', err);
         } finally {
@@ -111,13 +113,13 @@ const ModeratorDashboardPage = () => {
     };
 
     // All chart functions now receive shared data — no API calls inside
-    const loadReportStats = (allEntries, allUsers) => {
+    const loadReportStats = (allEntries, allUsers, allAccounts = []) => {
         loadDailyData(allEntries);
         loadWeeklyData(allEntries);
         loadSourceRatio(allEntries);
         loadCityStats(allEntries, allUsers);
         loadNewDevotees(allUsers);
-        loadTopGrowing(allEntries);
+        loadTopGrowing(allEntries, allAccounts);
     };
 
     const loadDailyData = (allEntries) => {
@@ -188,7 +190,8 @@ const ModeratorDashboardPage = () => {
         setNewDevotees(dailyNew);
     };
 
-    const loadTopGrowing = (allEntries) => {
+    const loadTopGrowing = (allEntries, allAccounts = []) => {
+        const nameById = Object.fromEntries(allAccounts.map(a => [a.$id, a.name]));
         const weekStart = new Date();
         weekStart.setDate(weekStart.getDate() - 7);
         const weekStartStr = weekStart.toISOString().split('T')[0];
@@ -200,7 +203,10 @@ const ModeratorDashboardPage = () => {
             accountMap[name].count += entry.count || 0;
         });
         const sorted = Object.values(accountMap)
-            .map(a => ({ name: a.id.length > 15 ? a.id.substring(0, 15) + '...' : a.id, growth: a.count }))
+            .map(a => {
+                const full = nameById[a.id] || a.id;
+                return { name: full.length > 22 ? full.substring(0, 22) + '…' : full, fullName: full, growth: a.count };
+            })
             .sort((a, b) => b.growth - a.growth)
             .slice(0, 5);
         setTopGrowing(sorted);
@@ -763,16 +769,16 @@ const ModeratorDashboardPage = () => {
                                             <tr key={account.id}>
                                                 <td><strong>{account.name}</strong></td>
                                                 <td>{formatNumber(account.today)}</td>
-                                                <td>{formatNumber(account.thisWeek)}</td>
-                                                <td>{formatNumber(account.thisMonth)}</td>
-                                                <td>{formatNumber(account.thisYear)}</td>
+                                                <td>{formatNumber(account.currentWeek)}</td>
+                                                <td>{formatNumber(account.currentMonth)}</td>
+                                                <td>{formatNumber(account.currentYear)}</td>
                                                 <td style={{ fontWeight: 'bold', color: 'var(--primary-color)' }}>{formatNumber(account.overall)}</td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
-                            <div className="charts-grid" style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px' }}>
+                            <div className="charts-grid" style={{ marginTop: '2rem', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', alignItems: 'start' }}>
                                 <div className="chart-card" style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #eee', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                     <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: '#444' }}>Daily Nama Growth (7 Days)</h3>
                                     <ResponsiveContainer width="100%" height={220}>
@@ -799,23 +805,40 @@ const ModeratorDashboardPage = () => {
                                 </div>
                                 <div className="chart-card" style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #eee', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                     <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: '#444' }}>Account Contribution</h3>
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <PieChart>
-                                            <Pie data={accountStats.filter(a => a.overall > 0)} dataKey="overall" nameKey="name" cx="50%" cy="50%" outerRadius={70} label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>
-                                                {accountStats.map((e, i) => (<Cell key={i} fill={COLORS[i % COLORS.length]} />))}
-                                            </Pie>
-                                            <Tooltip /><Legend />
-                                        </PieChart>
-                                    </ResponsiveContainer>
+                                    {(() => {
+                                        const pieData = accountStats.filter(a => a.overall > 0);
+                                        const pieTotal = pieData.reduce((sum, a) => sum + a.overall, 0) || 1;
+                                        return (
+                                            <>
+                                                <ResponsiveContainer width="100%" height={200}>
+                                                    <PieChart>
+                                                        <Pie data={pieData} dataKey="overall" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={false}>
+                                                            {pieData.map((e, i) => (<Cell key={e.id} fill={COLORS[i % COLORS.length]} />))}
+                                                        </Pie>
+                                                        <Tooltip formatter={(v, n) => [formatNumber(v), n]} />
+                                                    </PieChart>
+                                                </ResponsiveContainer>
+                                                <ul style={{ listStyle: 'none', margin: '10px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.8rem', color: '#444' }}>
+                                                    {pieData.map((a, i) => (
+                                                        <li key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                                                            <span style={{ width: 10, height: 10, borderRadius: 2, background: COLORS[i % COLORS.length], flex: '0 0 10px', marginTop: 4 }} />
+                                                            <span style={{ flex: 1 }}>{a.name}</span>
+                                                            <strong style={{ whiteSpace: 'nowrap' }}>{((a.overall / pieTotal) * 100).toFixed(1)}%</strong>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="chart-card chart-card-wide" style={{ background: 'white', padding: '15px', borderRadius: '8px', border: '1px solid #eee', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                                     <h3 style={{ fontSize: '1rem', marginBottom: '15px', color: '#444' }}>Top Growing Accounts (This Week)</h3>
                                     <ResponsiveContainer width="100%" height={220}>
                                         <BarChart data={topGrowing}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                                            <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                                            <XAxis dataKey="name" tick={{ fontSize: 10 }} interval={0} />
                                             <YAxis tick={{ fontSize: 11 }} />
-                                            <Tooltip />
+                                            <Tooltip labelFormatter={(label, items) => items?.[0]?.payload?.fullName || label} />
                                             <Bar dataKey="growth" fill="#00BCD4" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
