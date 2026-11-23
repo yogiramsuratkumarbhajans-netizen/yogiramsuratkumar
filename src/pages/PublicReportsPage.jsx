@@ -408,6 +408,10 @@ const PublicReportsPage = () => {
     };
     const formatNumber = (num) => num?.toLocaleString() || '0';
 
+    // Refresh banner turns red (same wording) when the stats are over 14h old, i.e. a refresh was missed.
+    const REFRESH_OVERDUE_MS = 14 * 60 * 60 * 1000;
+    const isRefreshOverdue = !!generatedAt && (Date.now() - new Date(generatedAt).getTime()) > REFRESH_OVERDUE_MS;
+
     // Indian-system unit label for big numbers, e.g. 9004185 -> "90.04 Lakhs", 12500000 -> "1.25 Crore"
     const formatIndianUnit = (num) => {
         const n = Number(num) || 0;
@@ -462,10 +466,10 @@ const PublicReportsPage = () => {
                         <div style={{
                             display: 'inline-block',
                             padding: '12px 20px',
-                            background: '#fff8e1',
-                            border: '1.5px solid #FF9933',
+                            background: isRefreshOverdue ? '#fdecea' : '#fff8e1',
+                            border: `1.5px solid ${isRefreshOverdue ? '#d9534f' : '#FF9933'}`,
                             borderRadius: '8px',
-                            boxShadow: '0 2px 6px rgba(255,153,51,0.15)',
+                            boxShadow: isRefreshOverdue ? '0 2px 6px rgba(217,83,79,0.2)' : '0 2px 6px rgba(255,153,51,0.15)',
                             maxWidth: '600px'
                         }}>
                             <div style={{ fontSize: '0.88rem', fontWeight: '700', color: '#8B0000' }}>
@@ -476,7 +480,7 @@ const PublicReportsPage = () => {
                                     day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata'
                                 })} IST
                             </div>
-                            <div style={{ fontSize: '0.75rem', marginTop: '5px', color: '#5a3800', fontWeight: '500' }}>
+                            <div style={{ fontSize: '0.75rem', marginTop: '5px', color: isRefreshOverdue ? '#6b1d1d' : '#5a3800', fontWeight: '500' }}>
                                 Due to free-tier hosting limits, statistics update every 12 hours. If today's count seems low, please check back after the next refresh.
                             </div>
                             {isStale && (
@@ -515,6 +519,10 @@ const PublicReportsPage = () => {
                                 </div>
                             )}
                             <div className="stat-label">Total Namas</div>
+                        </div>
+                        <div className="stat-card">
+                            <div className="stat-value">{formatNumber(totalStats.users)}</div>
+                            <div className="stat-label">Registered Devotees</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-value">{formatNumber(totalStats.devotees || totalStats.users)}</div>
