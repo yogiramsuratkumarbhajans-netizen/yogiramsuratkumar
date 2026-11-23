@@ -521,6 +521,10 @@ const PublicReportsPage = () => {
                             <div className="stat-label">Total Namas</div>
                         </div>
                         <div className="stat-card">
+                            <div className="stat-value">{formatNumber(totalStats.users)}</div>
+                            <div className="stat-label">Registered Devotees</div>
+                        </div>
+                        <div className="stat-card">
                             <div className="stat-value">{formatNumber(totalStats.devotees || totalStats.users)}</div>
                             <div className="stat-label">Devotee Participations</div>
                         </div>
