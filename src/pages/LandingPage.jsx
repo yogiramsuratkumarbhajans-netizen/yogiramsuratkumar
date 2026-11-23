@@ -202,7 +202,7 @@ const LandingPage = () => {
                     </div>
                     <div className="stat-item">
                         <span className="stat-num">{loading ? '...' : formatNumber(liveStats.devoteesChanted)}</span>
-                        <span className="stat-lbl">Devotees</span>
+                        <span className="stat-lbl">Devotee Participations</span>
                     </div>
                     <div className="stat-item highlight">
                         <span className="stat-num">{loading ? '...' : formatNumber(liveStats.totalNamaCount)}</span>
