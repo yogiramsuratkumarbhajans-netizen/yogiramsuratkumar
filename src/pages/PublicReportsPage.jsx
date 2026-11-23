@@ -518,7 +518,7 @@ const PublicReportsPage = () => {
                         </div>
                         <div className="stat-card">
                             <div className="stat-value">{formatNumber(totalStats.devotees || totalStats.users)}</div>
-                            <div className="stat-label">Devotees</div>
+                            <div className="stat-label">Devotee Participations</div>
                         </div>
                         <div className="stat-card">
                             <div className="stat-value">{formatNumber(totalStats.entries)}</div>
