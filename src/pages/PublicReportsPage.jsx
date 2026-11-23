@@ -408,6 +408,15 @@ const PublicReportsPage = () => {
     };
     const formatNumber = (num) => num?.toLocaleString() || '0';
 
+    // Indian-system unit label for big numbers, e.g. 9004185 -> "90.04 Lakhs", 12500000 -> "1.25 Crore"
+    const formatIndianUnit = (num) => {
+        const n = Number(num) || 0;
+        const trim = (v) => String(parseFloat(v.toFixed(2)));
+        if (n >= 10000000) return `${trim(n / 10000000)} Crore`;
+        if (n >= 100000) { const v = trim(n / 100000); return `${v} ${v === '1' ? 'Lakh' : 'Lakhs'}`; }
+        return '';
+    };
+
     if (loading) {
         return (
             <div className="public-reports-page">
@@ -500,6 +509,11 @@ const PublicReportsPage = () => {
                     <section className="global-stats">
                         <div className="stat-card highlight">
                             <div className="stat-value">{formatNumber(totalStats.total)}</div>
+                            {formatIndianUnit(totalStats.total) && (
+                                <div className="stat-label" style={{ fontWeight: 600, marginTop: '-2px', marginBottom: '2px' }}>
+                                    = {formatIndianUnit(totalStats.total)}
+                                </div>
+                            )}
                             <div className="stat-label">Total Namas</div>
                         </div>
                         <div className="stat-card">
