@@ -50,10 +50,10 @@ const CHANT_VIDEOS = [
     },
     {
         id: 'v108ram',
-        title: '108 Ram Nam in 22 Minutes',
+        title: '216 Times Ram Nam | Live Counter',
         subtitleParts: ['Om Sri Ram Jai Ram Jai Jai Ram Chant', '', ''],
         duration: '22 min',
-        count: 108,
+        count: 216,
         youtubeId: 'xa3EwxGX6g8',
         url: 'https://www.youtube.com/watch?v=xa3EwxGX6g8',
         // Quick-add always goes to the Sankalpa whose name contains this text
